@@ -1,0 +1,10 @@
+# Ignore dependencies
+node_modules/
+server/node_modules/
+
+# ⚠️ IGNORE SECRET API KEYS (NEVER PUSH TO GITHUB!)
+.env
+server/.env
+
+# Ignore build outputs
+dist/

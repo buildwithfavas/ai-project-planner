@@ -1,0 +1,131 @@
+[
+  {
+    "testName": "Simple Todo App",
+    "projectName": "Simple Todo App",
+    "description": "A basic todo list application with add, delete, and mark as complete features",
+    "experience": "Beginner",
+    "technology": "HTML, CSS, JavaScript",
+    "deadline": "5",
+    "expectedCriteria": {
+      "requiredModules": ["todo list", "add", "delete", "complete", "user interface"],
+      "minPhases": 2,
+      "minTasksPerPhase": 2,
+      "technicalAppropriateness": "Tasks should use HTML, CSS, JavaScript appropriately"
+    },
+    "teamMembers": [
+      {
+        "name": "John Developer",
+        "email": "john@example.com",
+        "role": "Frontend",
+        "skills": ["HTML", "CSS", "JavaScript"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      }
+    ]
+  },
+  {
+    "testName": "E-commerce Product Catalog",
+    "projectName": "E-commerce Product Catalog",
+    "description": "A product catalog website with search functionality, product details page, and shopping cart",
+    "experience": "Intermediate",
+    "technology": "React, Node.js, MongoDB",
+    "deadline": "14",
+    "expectedCriteria": {
+      "requiredModules": ["authentication", "product management", "search", "cart", "database", "testing"],
+      "minPhases": 3,
+      "minTasksPerPhase": 2,
+      "technicalAppropriateness": "Tasks should match React, Node.js, MongoDB stack"
+    },
+    "teamMembers": [
+      {
+        "name": "Alex Frontend",
+        "email": "alex@example.com",
+        "role": "Frontend",
+        "skills": ["React", "JavaScript", "CSS"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      },
+      {
+        "name": "Sam Backend",
+        "email": "sam@example.com",
+        "role": "Backend",
+        "skills": ["Node.js", "Express", "MongoDB"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      },
+      {
+        "name": "Jordan QA",
+        "email": "jordan@example.com",
+        "role": "QA",
+        "skills": ["Testing", "QA", "Automation"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      }
+    ]
+  },
+  {
+    "testName": "Unrealistic Deadline",
+    "projectName": "Large Banking Platform",
+    "description": "A complex banking platform with user authentication, account management, money transfers, transaction history, notifications, security features, admin dashboard, and reporting",
+    "experience": "Advanced",
+    "technology": "React, Node.js, PostgreSQL, Redis",
+    "deadline": "2",
+    "expectedCriteria": {
+      "requiredModules": ["authentication", "security", "database", "api", "testing"],
+      "minPhases": 4,
+      "minTasksPerPhase": 3,
+      "technicalAppropriateness": "Tasks should match React, Node.js, PostgreSQL, Redis stack",
+      "deadlineFeasibilityCheck": true
+    },
+    "teamMembers": [
+      {
+        "name": "Frank Frontend",
+        "email": "frank@example.com",
+        "role": "Frontend",
+        "skills": ["React", "JavaScript", "Redux"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      },
+      {
+        "name": "Grace Backend",
+        "email": "grace@example.com",
+        "role": "Backend",
+        "skills": ["Node.js", "Express", "PostgreSQL"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      },
+      {
+        "name": "Henry Database",
+        "email": "henry@example.com",
+        "role": "Database",
+        "skills": ["PostgreSQL", "Database Design"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      },
+      {
+        "name": "Ivy QA",
+        "email": "ivy@example.com",
+        "role": "QA",
+        "skills": ["Testing", "Automation", "Security Testing"],
+        "activeTasksCount": 0,
+        "isOnLeave": false
+      }
+    ]
+  },
+  {
+    "testName": "No Team Members",
+    "projectName": "Weather Dashboard",
+    "description": "A weather dashboard that displays current weather, forecasts, temperature, humidity, and weather alerts",
+    "experience": "Beginner",
+    "technology": "React, JavaScript, Weather API",
+    "deadline": "7",
+    "expectedCriteria": {
+      "requiredModules": ["weather api", "dashboard", "current weather", "forecast", "alerts"],
+      "minPhases": 2,
+      "minTasksPerPhase": 2,
+      "technicalAppropriateness": "Tasks should use React, JavaScript, Weather API appropriately",
+      "edgeCase": "no team members should result in unassigned tasks"
+    },
+    "teamMembers": []
+  }
+]
