@@ -4,33 +4,33 @@
   --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Color Palette - Velvet Obsidian, Royal Amethyst & Sunset Rose (No Blue) */
-  --bg-dark: #0a0812;
-  --bg-card: rgba(18, 14, 28, 0.88);
-  --bg-card-hover: rgba(26, 20, 40, 0.95);
-  --bg-card-elevated: #161124;
-  --bg-input: rgba(12, 9, 20, 0.85);
-  --bg-input-focus: rgba(18, 13, 30, 0.95);
+  /* Color Palette - Warm Obsidian, Sunset Amber & Fiery Orange */
+  --bg-dark: #0c0906;
+  --bg-card: rgba(22, 16, 11, 0.88);
+  --bg-card-hover: rgba(32, 23, 16, 0.95);
+  --bg-card-elevated: #1d140e;
+  --bg-input: rgba(16, 12, 8, 0.85);
+  --bg-input-focus: rgba(24, 18, 12, 0.95);
 
   --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-card: rgba(139, 92, 246, 0.22);
-  --border-card-hover: rgba(168, 85, 247, 0.45);
-  --border-focus: #a855f7;
+  --border-card: rgba(249, 115, 22, 0.22);
+  --border-card-hover: rgba(251, 146, 60, 0.45);
+  --border-focus: #f97316;
 
-  /* Accent Colors - Purples, Fuchsia, Coral & Mint */
-  --primary: #8b5cf6;
-  --primary-light: #a78bfa;
-  --primary-glow: rgba(139, 92, 246, 0.3);
+  /* Accent Colors - Sunset Orange, Amber Gold, Warm Terracotta */
+  --primary: #f97316;
+  --primary-light: #fb923c;
+  --primary-glow: rgba(249, 115, 22, 0.35);
 
-  --secondary: #ec4899;
-  --secondary-light: #f472b6;
-  --secondary-glow: rgba(236, 72, 153, 0.25);
+  --secondary: #ea580c;
+  --secondary-light: #fdba74;
+  --secondary-glow: rgba(234, 88, 12, 0.28);
 
-  --accent-warm: #f97316;
-  --accent-warm-light: #fb923c;
+  --accent-warm: #f59e0b;
+  --accent-warm-light: #fbbf24;
 
-  --accent-purple: #a855f7;
-  --accent-purple-light: #c084fc;
+  --accent-gold: #d97706;
+  --accent-gold-light: #fde68a;
 
   --success: #10b981;
   --success-light: #34d399;
@@ -48,16 +48,16 @@
   --danger-border: rgba(239, 68, 68, 0.35);
 
   /* Text Colors */
-  --text-primary: #fdfcff;
-  --text-secondary: #e2dcf0;
-  --text-muted: #a79cb8;
-  --text-dim: #716682;
+  --text-primary: #fffaf5;
+  --text-secondary: #f2ded0;
+  --text-muted: #b0998a;
+  --text-dim: #7c6a5d;
 
   /* Shadows & Glassmorphism */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 35px -5px rgba(139, 92, 246, 0.3);
-  --shadow-glow-rose: 0 0 30px -5px rgba(236, 72, 153, 0.25);
+  --shadow-glow: 0 0 35px -5px rgba(249, 115, 22, 0.3);
+  --shadow-glow-amber: 0 0 30px -5px rgba(245, 158, 11, 0.25);
   
   --backdrop-blur: blur(16px);
   --radius-sm: 8px;
@@ -81,10 +81,10 @@ body {
   min-height: 100vh;
   background-color: var(--bg-dark);
   background-image: 
-    radial-gradient(circle at 14% 18%, rgba(139, 92, 246, 0.14) 0%, transparent 48%),
-    radial-gradient(circle at 86% 28%, rgba(236, 72, 153, 0.12) 0%, transparent 42%),
-    radial-gradient(circle at 50% 82%, rgba(249, 115, 22, 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, #0a0812 0%, #0d0a17 100%);
+    radial-gradient(circle at 14% 18%, rgba(249, 115, 22, 0.14) 0%, transparent 48%),
+    radial-gradient(circle at 86% 28%, rgba(245, 158, 11, 0.12) 0%, transparent 42%),
+    radial-gradient(circle at 50% 82%, rgba(234, 88, 12, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #0c0906 0%, #120c08 100%);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -110,16 +110,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 8, 18, 0.8);
+  background: rgba(12, 9, 6, 0.8);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.35);
+  background: rgba(249, 115, 22, 0.35);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.65);
+  background: rgba(251, 146, 60, 0.65);
 }
 
 /* Base Typography */
@@ -137,10 +137,10 @@ code, kbd, samp, pre {
 /* Keyframes */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 15px rgba(249, 115, 22, 0.35);
   }
   50% {
-    box-shadow: 0 0 30px rgba(236, 72, 153, 0.6);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.6);
   }
 }
 

@@ -1,0 +1,220 @@
+/* ============================================================
+   AI PROJECT PLANNER — TEAM INPUT COMPONENT STYLES
+   ============================================================ */
+
+.team-container {
+  margin-bottom: 24px;
+}
+
+.team-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.team-label {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.team-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.team-counter-badge {
+  font-size: 11.5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background-color: rgba(249, 115, 22, 0.14);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  font-weight: 600;
+}
+
+.team-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.team-member-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(150px, 1.4fr) minmax(130px, 1fr) minmax(140px, 1.3fr) 80px 105px 36px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  background-color: rgba(22, 16, 11, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.team-member-card-leave {
+  background-color: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.team-member-card-capacity {
+  background-color: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.team-input {
+  width: 100%;
+  background-color: rgba(16, 12, 8, 0.9);
+  color: #fffaf5;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.team-input:focus {
+  border-color: var(--primary-light);
+}
+
+.team-role-select {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.team-role-select option {
+  background: #16100b;
+}
+
+.role-frontend {
+  background-color: rgba(249, 115, 22, 0.14);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.role-backend {
+  background-color: rgba(234, 88, 12, 0.14);
+  color: #fdba74;
+  border-color: rgba(234, 88, 12, 0.35);
+}
+
+.role-database {
+  background-color: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.role-qa {
+  background-color: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.role-default {
+  background-color: rgba(249, 115, 22, 0.14);
+  color: #fed7aa;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.task-count-wrap {
+  position: relative;
+}
+
+.task-count-input {
+  text-align: center;
+  font-weight: 700;
+}
+
+.task-count-input-capacity {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.task-count-max {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background-color: #f59e0b;
+  color: #000;
+  font-size: 9px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+.leave-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 8px;
+  border-radius: 8px;
+  justify-content: center;
+}
+
+.leave-toggle-on-leave {
+  color: #f87171;
+  background-color: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.leave-toggle-active {
+  color: #34d399;
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.leave-checkbox {
+  accent-color: #ef4444;
+  cursor: pointer;
+}
+
+.btn-remove-member {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-member:hover {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.btn-add-member {
+  margin-top: 12px;
+  width: 100%;
+  padding: 11px;
+  background-color: rgba(22, 16, 11, 0.7);
+  border: 1px dashed rgba(249, 115, 22, 0.4);
+  color: #fb923c;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-add-member:hover {
+  background-color: rgba(249, 115, 22, 0.14);
+  border-color: var(--primary-light);
+}
