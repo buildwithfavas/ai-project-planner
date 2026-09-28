@@ -60,8 +60,14 @@ const projectSchema = new mongoose.Schema({
     isOnLeave: { type: Boolean, default: false }
   }],
   plan: {
+    projectOverview: String,
+    complexity: String,
+    estimatedTotalDays: Number,
+    totalEstimatedDays: Number,
     phases: [phaseSchema],
-    totalEstimatedDays: Number
+    risks: [String],
+    testingPlan: [String],
+    deadlineWarning: String
   },
   workflowSteps: [{
     step: Number,

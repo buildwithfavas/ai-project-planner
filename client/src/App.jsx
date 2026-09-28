@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import TeamInput from './components/TeamInput'
 import WorkflowVisualizer from './components/WorkflowVisualizer'
+import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
@@ -35,7 +36,7 @@ function App() {
       email: 'bennetsharwin76@gmail.com', 
       role: 'Database',
       skills: ['PostgreSQL', 'MongoDB', 'Redis', 'Docker'],
-      activeTasksCount: 3, // Notice: Bennet is already at capacity (3 tasks)!
+      activeTasksCount: 3, // At capacity (3 tasks)
       isOnLeave: false 
     },
     { 
@@ -44,15 +45,14 @@ function App() {
       role: 'QA',
       skills: ['Jest', 'Cypress', 'Postman', 'Manual Testing'],
       activeTasksCount: 0,
-      isOnLeave: true // Notice: Sarag is on leave!
+      isOnLeave: true // On leave
     }
   ])
 
-
-  // Response, Loading & Workflow states
-  const [response, setResponse] = useState('')
+  // Loading, Plan & Workflow states
   const [loading, setLoading] = useState(false)
   const [plan, setPlan] = useState(null)
+  const [projectId, setProjectId] = useState(null)
   const [workflowSteps, setWorkflowSteps] = useState([])
 
   // Email Tool Dispatch States
@@ -72,8 +72,8 @@ function App() {
     }
 
     setLoading(true)
-    setResponse('')
     setPlan(null)
+    setProjectId(null)
     setWorkflowSteps([])
     setEmailDispatches([])
 
@@ -97,16 +97,14 @@ function App() {
 
       if (res.ok) {
         setPlan(data.plan)
+        setProjectId(data.projectId || null)
         setWorkflowSteps(data.workflowSteps || [])
-        setResponse(JSON.stringify(data.plan, null, 2))
       } else {
         alert(`Error: ${data.error}`)
-        setResponse(`Error: ${data.error}`)
       }
     } catch (error) {
       console.error('Fetch error:', error)
       alert(`Failed to connect to backend server. Make sure it is running on ${API_BASE_URL}.`)
-      setResponse('Failed to connect to backend server.')
     } finally {
       setLoading(false)
     }
@@ -122,7 +120,6 @@ function App() {
       updatedPlan.phases[phaseIndex].tasks[taskIndex].assignedName = member.name
       updatedPlan.phases[phaseIndex].tasks[taskIndex].assignedRole = member.role
       setPlan(updatedPlan)
-      setResponse(JSON.stringify(updatedPlan, null, 2))
     }
   }
 
@@ -136,6 +133,7 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId,
           projectName,
           teamMembers,
           plan
@@ -160,9 +158,9 @@ function App() {
 
   // 5. HANDLE AI ASSISTANT
   const handleAskAssistant = async () => {
-    if (!question.trim() || !response) return
+    if (!question.trim() || !plan) return
 
-    const currentPlan = JSON.parse(response)
+    const currentPlan = plan
     setAssistantLoading(true)
 
     try {
@@ -194,324 +192,545 @@ function App() {
     }
   }
 
-  const inputStyle = {
-    width: '100%',
-    backgroundColor: '#0f172a',
-    color: '#f8fafc',
-    border: '1px solid #334155',
-    borderRadius: '10px',
-    padding: '12px 14px',
-    fontSize: '15px',
-    outline: 'none',
-    boxSizing: 'border-box',
-    marginBottom: '16px'
+  const getStatusBadge = (status) => {
+    if (status === 'Real SMTP') {
+      return (
+        <span style={{ 
+          backgroundColor: 'var(--success-bg)', 
+          color: 'var(--success-light)', 
+          border: '1px solid var(--success-border)',
+          padding: '3px 8px', 
+          borderRadius: '4px', 
+          fontSize: '11px',
+          fontWeight: '600'
+        }}>
+          ✓ Real SMTP Sent
+        </span>
+      )
+    }
+    if (status === 'Mock Mode') {
+      return (
+        <span style={{ 
+          backgroundColor: 'rgba(168, 85, 247, 0.15)', 
+          color: '#d8b4fe', 
+          border: '1px solid rgba(168, 85, 247, 0.35)',
+          padding: '3px 8px', 
+          borderRadius: '4px', 
+          fontSize: '11px',
+          fontWeight: '600'
+        }}>
+          ⚙️ Mock Mode Dispatched
+        </span>
+      )
+    }
+    return (
+      <span style={{ 
+        backgroundColor: 'var(--danger-bg)', 
+        color: 'var(--danger-light)', 
+        border: '1px solid var(--danger-border)',
+        padding: '3px 8px', 
+        borderRadius: '4px', 
+        fontSize: '11px',
+        fontWeight: '600'
+      }}>
+        ❌ Dispatch Failed
+      </span>
+    )
   }
 
-  const getStatusBadge = (status) => {
-    if (status === 'Real SMTP') return <span style={{ backgroundColor: '#065f46', color: '#6ee7b7', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>✓ Real SMTP</span>;
-    if (status === 'Mock Mode') return <span style={{ backgroundColor: '#1e3a8a', color: '#93c5fd', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>⚙️ Mock Mode</span>;
-    return <span style={{ backgroundColor: '#991b1b', color: '#fca5a5', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>❌ Failed</span>;
-  };
+  const getComplexityColor = (complexity) => {
+    switch (complexity?.toLowerCase()) {
+      case 'low': return { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399', border: 'rgba(16, 185, 129, 0.3)' };
+      case 'medium': return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' };
+      case 'high': return { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' };
+      default: return { bg: 'rgba(168, 85, 247, 0.15)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.3)' };
+    }
+  }
+
+  const isFormValid = Boolean(projectName.trim() && description.trim())
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#0f172a',
-      color: '#f8fafc',
-      fontFamily: "'Inter', system-ui, sans-serif",
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '20px',
-      boxSizing: 'border-box'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '800px',
-        backgroundColor: '#1e293b',
-        borderRadius: '16px',
-        border: '1px solid #334155',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-        padding: '32px'
-      }}>
-        {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-          <span style={{ fontSize: '32px' }}>🤖</span>
-          <div>
-            <h1 style={{
-              margin: 0,
-              fontSize: '26px',
-              fontWeight: '700',
-              background: 'linear-gradient(to right, #818cf8, #c084fc)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
-            }}>
-              AI Agent Project Planner
-            </h1>
-            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
-              Multi-Agent Workflow with Interactive Team Leader Review & Email Dispatch
+    <div>
+      {/* 1. TOP NAVIGATION & STATUS BAR */}
+      <header className="app-header">
+        <div className="brand-badge">
+          <div className="brand-logo-icon">🚀</div>
+          <div className="brand-title-wrap">
+            <h1>AetherPlan AI</h1>
+            <p className="brand-subtitle">
+              <span>Autonomous Multi-Agent Architecture & Workload Dispatcher</span>
             </p>
           </div>
         </div>
 
-        {/* 1. Project Name */}
-        <label style={{ display: 'block', fontSize: '14px', color: '#94a3b8', marginBottom: '6px' }}>
-          Project Name
-        </label>
-        <input
-          type="text"
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-          placeholder="e.g., E-Commerce Marketplace"
-          style={inputStyle}
-        />
-
-        {/* 2. Project Description */}
-        <label style={{ display: 'block', fontSize: '14px', color: '#94a3b8', marginBottom: '6px' }}>
-          Project Description
-        </label>
-        <textarea
-          rows={4}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe your project features and goals..."
-          style={{ ...inputStyle, resize: 'vertical' }}
-        />
-
-        {/* 3. Experience Level & 4. Technology (2 Columns) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', color: '#94a3b8', marginBottom: '6px' }}>
-              Experience Level
-            </label>
-            <select
-              value={experience}
-              onChange={(e) => setExperience(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="Beginner">Beginner</option>
-              <option value="Intermediate">Intermediate</option>
-              <option value="Advanced">Advanced</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', color: '#94a3b8', marginBottom: '6px' }}>
-              Technology Stack
-            </label>
-            <select
-              value={technology}
-              onChange={(e) => setTechnology(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="MERN Stack">MERN Stack (React, Node, Express, MongoDB)</option>
-              <option value="Next.js">Next.js + Tailwind</option>
-              <option value="Python Django/FastAPI">Python (Django / FastAPI)</option>
-              <option value="Java Spring Boot">Java Spring Boot</option>
-            </select>
-          </div>
+        <div className="header-status-pill">
+          <span className="status-dot"></span>
+          <span>Gemini 2.5 Flash & RAG Online</span>
         </div>
+      </header>
 
-        {/* 5. Target Deadline */}
-        <label style={{ display: 'block', fontSize: '14px', color: '#94a3b8', marginBottom: '6px' }}>
-          Target Deadline
-        </label>
-        <input
-          type="text"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-          placeholder="e.g., 30 days"
-          style={inputStyle}
-        />
-
-        {/* 6. TEAM MEMBERS INPUT */}
-        <TeamInput teamMembers={teamMembers} setTeamMembers={setTeamMembers} />
-
-        {/* Submit Button */}
-        <button
-          onClick={handleGeneratePlan}
-          disabled={loading || !projectName.trim() || !description.trim()}
-          style={{
-            width: '100%',
-            padding: '14px',
-            fontSize: '16px',
-            fontWeight: '600',
-            color: '#ffffff',
-            background: (projectName.trim() && description.trim()) ? 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)' : '#334155',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: (projectName.trim() && description.trim()) ? 'pointer' : 'not-allowed',
-            marginTop: '8px'
-          }}
-        >
-          {loading ? '⚙️ Running Multi-Agent Workflow...' : '✨ Execute Agentic Plan'}
-        </button>
-
-        {/* WORKFLOW VISUALIZER STEP CARDS */}
-        {loading && (
-          <div style={{ marginTop: '24px', backgroundColor: '#0f172a', padding: '20px', borderRadius: '12px', border: '1px solid #334155', textAlign: 'center' }}>
-            <h3 style={{ color: '#818cf8', fontSize: '16px', margin: 0 }}>⚙️ Multi-Agent System Executing...</h3>
-            <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>
-              🧠 Planner Agent ➔ 🔍 RAG Knowledge Engine ➔ ⚙️ Executor Agent ➔ 🛡️ Validator Agent
-            </p>
+      {/* 2. MAIN WORKSPACE CONTAINER */}
+      <main className="app-main">
+        
+        {/* CONFIGURATION PANEL */}
+        <section className="glass-panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">
+                <span className="panel-title-icon">⚙️</span>
+                Project Specification
+              </h2>
+              <p className="panel-desc">
+                Define your project scope, target tech stack, and developer roster for agentic planning.
+              </p>
+            </div>
           </div>
+
+          {/* Form fields */}
+          <div className="form-group">
+            <label className="form-label">
+              <span>Project Name</span>
+              <span className="form-label-tag">Required</span>
+            </label>
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder="e.g. NextGen E-Commerce Marketplace with Microservices"
+              className="input-field"
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              <span>Project Overview & Requirements</span>
+              <span className="form-label-tag">Required</span>
+            </label>
+            <textarea
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe core functionalities (e.g. JWT Auth, Product Catalog, Stripe Payments, Shopping Cart, Admin Analytics)..."
+              className="input-field"
+              style={{ resize: 'vertical' }}
+            />
+          </div>
+
+          <div className="grid-2col">
+            <div className="form-group">
+              <label className="form-label">
+                <span>Team Experience Level</span>
+              </label>
+              <select
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+                className="input-field"
+                style={{ cursor: 'pointer' }}
+              >
+                <option value="Beginner">Beginner (1-2 yrs) — Detailed steps & conservative pacing</option>
+                <option value="Intermediate">Intermediate (3-5 yrs) — Balanced velocity & standard practices</option>
+                <option value="Advanced">Advanced (5+ yrs) — High velocity, advanced patterns</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <span>Target Technology Stack</span>
+              </label>
+              <select
+                value={technology}
+                onChange={(e) => setTechnology(e.target.value)}
+                className="input-field"
+                style={{ cursor: 'pointer' }}
+              >
+                <option value="MERN Stack">MERN Stack (MongoDB, Express, React, Node.js)</option>
+                <option value="Next.js">Next.js 15 + React Server Components + Tailwind</option>
+                <option value="Python Django/FastAPI">Python (FastAPI / Django REST Framework)</option>
+                <option value="Java Spring Boot">Java Spring Boot 3 + PostgreSQL</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              <span>Target Delivery Deadline</span>
+            </label>
+            <input
+              type="text"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              placeholder="e.g. 30 days"
+              className="input-field"
+            />
+          </div>
+
+          {/* TEAM MEMBERS ROSTER */}
+          <TeamInput teamMembers={teamMembers} setTeamMembers={setTeamMembers} />
+
+          {/* EXECUTION TRIGGER BUTTON */}
+          <button
+            onClick={handleGeneratePlan}
+            disabled={loading || !isFormValid}
+            className="btn-primary"
+          >
+            {loading ? (
+              <>
+                <span className="loading-spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', margin: 0 }}></span>
+                <span>Executing Autonomous Multi-Agent Workflow...</span>
+              </>
+            ) : (
+              <>
+                <span>✨</span>
+                <span>Execute Agentic Project Plan</span>
+              </>
+            )}
+          </button>
+
+          {/* LOADING STEP CHIPS */}
+          {loading && (
+            <div className="loading-box">
+              <div className="loading-spinner"></div>
+              <h3 style={{ color: 'var(--primary-light)', fontSize: '16px', margin: '0 0 6px 0' }}>
+                Multi-Agent Workflow In Progress
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>
+                Synthesizing architecture, indexing domain policies via vector embeddings, and auditing workloads...
+              </p>
+              <div className="loading-steps-chips">
+                <span className="chip-step">🧠 1. Planner Agent (Architecture)</span>
+                <span className="chip-step">🔍 2. RAG Knowledge Search</span>
+                <span className="chip-step">⚙️ 3. Executor Agent (Delegation)</span>
+                <span className="chip-step">🛡️ 4. Validator Agent (QA Audit)</span>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* WORKFLOW PIPELINE VISUALIZER */}
+        {workflowSteps.length > 0 && (
+          <WorkflowVisualizer steps={workflowSteps} plan={plan} />
         )}
 
-        {workflowSteps.length > 0 && <WorkflowVisualizer steps={workflowSteps} plan={plan} />}
-
-        {/* PROJECT PLAN DISPLAY & TEAM LEADER REVIEW */}
+        {/* PROJECT PLAN & TEAM LEADER REVIEW HUB */}
         {plan && (
-          <div style={{ marginTop: '28px' }}>
+          <section className="glass-panel" style={{ borderTop: '3px solid var(--primary)' }}>
+            
+            {/* Header */}
+            <div className="panel-header">
+              <div>
+                <h2 className="panel-title">
+                  <span className="panel-title-icon">📋</span>
+                  Architectural Blueprint & Task Breakdown
+                </h2>
+                <p className="panel-desc">
+                  Validated plan generated by Executor Agent with contextual skill match reasoning.
+                </p>
+              </div>
 
-            {/* Overview */}
-            <h3 style={{ color: '#818cf8', fontSize: '14px', marginBottom: '6px' }}>📋 PROJECT OVERVIEW</h3>
-            <p style={{ color: '#e2e8f0', fontSize: '14px', marginBottom: '16px', lineHeight: '1.6' }}>
+              {/* Deadline Feasibility Indicator */}
+              <div style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                backgroundColor: plan.deadlineWarning ? 'var(--warning-bg)' : 'var(--success-bg)',
+                color: plan.deadlineWarning ? 'var(--warning-light)' : 'var(--success-light)',
+                border: `1px solid ${plan.deadlineWarning ? 'var(--warning-border)' : 'var(--success-border)'}`
+              }}>
+                {plan.deadlineWarning ? '⚠️ Deadline Adjust Suggested' : '✓ Target Deadline Feasible'}
+              </div>
+            </div>
+
+            {/* Project Overview */}
+            <p style={{ 
+              color: 'var(--text-secondary)', 
+              fontSize: '14.5px', 
+              lineHeight: '1.7', 
+              margin: '0 0 20px',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(10, 15, 28, 0.65)',
+              borderRadius: '12px',
+              border: '1px solid var(--border-subtle)'
+            }}>
               {plan.projectOverview}
             </p>
 
-            {/* Complexity & Days */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-              <span style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '8px 14px', color: '#f8fafc', fontSize: '13px' }}>
-                🎯 Complexity: <strong>{plan.complexity}</strong>
-              </span>
-              <span style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '8px 14px', color: '#f8fafc', fontSize: '13px' }}>
-                📅 Estimated: <strong>{plan.estimatedTotalDays} days</strong>
-              </span>
-            </div>
+            {/* Metrics Row */}
+            {(() => {
+              const compStyle = getComplexityColor(plan.complexity);
+              return (
+                <div className="metrics-row">
+                  <div className="metric-card">
+                    <div className="metric-icon-wrap" style={{ backgroundColor: compStyle.bg, color: compStyle.text }}>
+                      🎯
+                    </div>
+                    <div>
+                      <div className="metric-label">Complexity</div>
+                      <div className="metric-value" style={{ color: compStyle.text }}>{plan.complexity}</div>
+                    </div>
+                  </div>
 
-            {/* Deadline Warning Banner */}
+                  <div className="metric-card">
+                    <div className="metric-icon-wrap" style={{ backgroundColor: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
+                      📅
+                    </div>
+                    <div>
+                      <div className="metric-label">Estimated Days</div>
+                      <div className="metric-value">{plan.estimatedTotalDays} Days</div>
+                    </div>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-icon-wrap" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#f472b6' }}>
+                      🚀
+                    </div>
+                    <div>
+                      <div className="metric-label">Phases</div>
+                      <div className="metric-value">{plan.phases?.length || 0} Phases</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Deadline Warning Banner if applicable */}
             {plan.deadlineWarning && (
-              <div style={{ backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
-                <p style={{ color: '#92400e', fontSize: '13px', margin: 0 }}>
-                  ⚠️ {plan.deadlineWarning}
-                </p>
+              <div className="alert-warning-banner">
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <div>
+                  <strong>Deadline Feasibility Notice:</strong> {plan.deadlineWarning}
+                </div>
               </div>
             )}
 
-            {/* Development Phases & INTERACTIVE TEAM LEADER TASK REASSIGNMENT */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h3 style={{ color: '#818cf8', fontSize: '14px', margin: 0 }}>🚀 DEVELOPMENT PHASES & TASK REASSIGNMENT</h3>
-              <span style={{ fontSize: '11px', color: '#38bdf8' }}>👑 Use dropdowns to adjust team assignments</span>
-            </div>
-
-            {plan.phases.map((phase, i) => (
-              <div key={i} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '14px', marginBottom: '12px' }}>
-                <h4 style={{ color: '#c084fc', fontSize: '14px', margin: '0 0 10px 0' }}>{phase.name}</h4>
-                {phase.tasks.map((task, j) => (
-                  <div key={j} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#e2e8f0', fontSize: '13px', marginBottom: '8px', padding: '8px 12px', backgroundColor: '#1e293b', borderRadius: '6px' }}>
-                    <div style={{ flex: 1, marginRight: '10px' }}>
-                      <div style={{ fontWeight: '600', color: '#f1f5f9' }}>☐ {task.title}</div>
-
-                      {/* 📦 Recommended Packages & Tools Pills */}
-                      {task.recommendedPackages && task.recommendedPackages.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', margin: '6px 0' }}>
-                          {task.recommendedPackages.map((pkg, pIdx) => (
-                            <span 
-                              key={pIdx} 
-                              style={{ 
-                                backgroundColor: '#0f172a', 
-                                color: '#a5f3fc', 
-                                border: '1px solid #0891b2', 
-                                borderRadius: '4px', 
-                                padding: '2px 6px', 
-                                fontSize: '11px',
-                                fontFamily: 'monospace'
-                              }}
-                            >
-                              📦 {pkg}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* 📋 Step-by-Step Deliverables Checklist */}
-                      {task.keyDeliverables && task.keyDeliverables.length > 0 && (
-                        <ul style={{ margin: '6px 0 6px 18px', padding: 0, fontSize: '12px', color: '#cbd5e1' }}>
-                          {task.keyDeliverables.map((item, dIdx) => (
-                            <li key={dIdx} style={{ marginBottom: '3px' }}>{item}</li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {/* 💡 AI Assignment Reason */}
-                      {task.assignmentReason && (
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px', fontStyle: 'italic' }}>
-                          💡 <strong style={{ color: '#38bdf8' }}>AI Match:</strong> {task.assignmentReason}
-                        </div>
-                      )}
-                    </div>
-
-
-                    {/* Team Leader Interactive Task Reassignment Dropdown */}
-                    <select
-                      value={task.assignedToEmail || ''}
-                      onChange={(e) => handleReassignTask(i, j, e.target.value)}
-                      style={{ backgroundColor: '#0f172a', color: '#38bdf8', border: '1px solid #334155', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}
-                    >
-                      {teamMembers.map((m, idx) => (
-                        <option key={idx} value={m.email}>
-                          👤 {m.name} ({m.role})
-                        </option>
-                      ))}
-                    </select>
-
-                    <span style={{ color: '#94a3b8', whiteSpace: 'nowrap', marginLeft: '12px' }}>{task.estimatedDays}d</span>
-                  </div>
-                ))}
+            {/* DEVELOPMENT PHASES & INTERACTIVE REASSIGNMENT */}
+            <div style={{ marginTop: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '15.5px', fontWeight: '700', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🚀</span> Development Phases & Interactive Task Reassignment
+                </h3>
+                <span style={{ fontSize: '12px', color: 'var(--secondary-light)', fontWeight: '600' }}>
+                  👑 Team Leader can override assignments using dropdowns
+                </span>
               </div>
-            ))}
 
-            {/* Risks */}
-            <h3 style={{ color: '#818cf8', fontSize: '14px', margin: '20px 0 10px 0' }}>⚠️ RISKS & WORKLOAD AUDIT</h3>
-            <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '14px' }}>
-              {plan.risks.map((risk, i) => (
-                <p key={i} style={{ color: '#fbbf24', fontSize: '13px', margin: '0 0 6px 0' }}>• {risk}</p>
+              {plan.phases.map((phase, pIdx) => (
+                <div key={pIdx} className="phase-card">
+                  <div className="phase-header">
+                    <h4 className="phase-title">
+                      <span>📌</span> {phase.name}
+                    </h4>
+                    <span style={{ 
+                      fontSize: '11.5px', 
+                      color: 'var(--text-muted)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                      padding: '3px 10px',
+                      borderRadius: '6px'
+                    }}>
+                      {phase.tasks?.length || 0} Task{phase.tasks?.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  <div className="task-list">
+                    {phase.tasks.map((task, tIdx) => (
+                      <div key={tIdx} className="task-item">
+                        <div style={{ flex: 1 }}>
+                          <div className="task-title">
+                            <span style={{ color: 'var(--primary-light)' }}>☐</span>
+                            <span>{task.title}</span>
+                          </div>
+
+                          {/* Recommended packages */}
+                          {task.recommendedPackages && task.recommendedPackages.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0' }}>
+                              {task.recommendedPackages.map((pkg, kIdx) => (
+                                <span key={kIdx} className="package-pill">
+                                  <span>📦</span> {pkg}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Deliverables Checklist */}
+                          {task.keyDeliverables && task.keyDeliverables.length > 0 && (
+                            <ul className="deliverable-list">
+                              {task.keyDeliverables.map((item, dIdx) => (
+                                <li key={dIdx}>{item}</li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {/* AI Match Reason Callout */}
+                          {task.assignmentReason && (
+                            <div className="ai-match-callout">
+                              <strong style={{ color: 'var(--secondary-light)' }}>AI Assignment Rationale:</strong>{' '}
+                              {task.assignmentReason}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Reassignment Dropdown & Duration */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                          <select
+                            value={task.assignedToEmail || ''}
+                            onChange={(e) => handleReassignTask(pIdx, tIdx, e.target.value)}
+                            className="reassign-select"
+                            title="Override task assignment"
+                          >
+                            {teamMembers.map((m, mIdx) => (
+                              <option key={mIdx} value={m.email} style={{ background: '#120e1c', color: '#fdfcff' }}>
+                                👤 {m.name} ({m.role})
+                              </option>
+                            ))}
+                          </select>
+
+                          <span className="duration-chip">
+                            ⏱️ {task.estimatedDays} Day{task.estimatedDays !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
 
-            {/* Testing Plan */}
-            <h3 style={{ color: '#818cf8', fontSize: '14px', margin: '20px 0 10px 0' }}>🧪 QA & TESTING PLAN</h3>
-            <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '14px' }}>
-              {plan.testingPlan.map((test, i) => (
-                <p key={i} style={{ color: '#86efac', fontSize: '13px', margin: '0 0 6px 0' }}>☐ {test}</p>
-              ))}
+            {/* RISKS & TESTING PLAN GRID */}
+            <div className="grid-2col" style={{ marginTop: '24px' }}>
+              {/* Risks Card */}
+              <div style={{
+                backgroundColor: 'rgba(11, 17, 33, 0.7)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                borderRadius: '12px',
+                padding: '18px'
+              }}>
+                <h4 style={{ 
+                  color: 'var(--warning-light)', 
+                  fontSize: '14px', 
+                  fontWeight: '700', 
+                  margin: '0 0 12px 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>⚠️</span> Identified Risks & Workload Bottlenecks
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {plan.risks?.map((risk, i) => (
+                    <div key={i} style={{ 
+                      color: '#fef3c7', 
+                      fontSize: '12.5px', 
+                      display: 'flex', 
+                      gap: '8px',
+                      lineHeight: '1.5'
+                    }}>
+                      <span style={{ color: 'var(--warning-light)' }}>•</span>
+                      <span>{risk}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* QA & Testing Card */}
+              <div style={{
+                backgroundColor: 'rgba(11, 17, 33, 0.7)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '12px',
+                padding: '18px'
+              }}>
+                <h4 style={{ 
+                  color: 'var(--success-light)', 
+                  fontSize: '14px', 
+                  fontWeight: '700', 
+                  margin: '0 0 12px 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>🧪</span> QA Validation & Audit Strategy
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {plan.testingPlan?.map((test, i) => (
+                    <div key={i} style={{ 
+                      color: '#d1fae5', 
+                      fontSize: '12.5px', 
+                      display: 'flex', 
+                      gap: '8px',
+                      lineHeight: '1.5'
+                    }}>
+                      <span style={{ color: 'var(--success-light)' }}>✓</span>
+                      <span>{test}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* 👑 TEAM LEADER EMAIL DISPATCH CONTROL PANEL */}
-            <div style={{ marginTop: '24px', backgroundColor: '#0f172a', padding: '20px', borderRadius: '12px', border: '1px solid #0284c7' }}>
-              <h4 style={{ color: '#38bdf8', margin: '0 0 6px 0', fontSize: '15px' }}>
-                👑 Team Leader Approval & Email Tool Trigger
-              </h4>
-              <p style={{ color: '#cbd5e1', fontSize: '13px', marginBottom: '14px', lineHeight: '1.5' }}>
-                Review task workload distribution above. Once you are satisfied with the assignments, click below to trigger the <strong>Email Service Tool</strong> to dispatch individualized task backlogs to developers.
+            {/* TEAM LEADER EMAIL DISPATCH CONSOLE */}
+            <div className="dispatch-console">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '20px' }}>👑</span>
+                <h4 style={{ color: 'var(--secondary-light)', margin: 0, fontSize: '16px', fontWeight: '700' }}>
+                  Team Leader Final Approval & Automated Dispatch
+                </h4>
+              </div>
+
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', marginBottom: '18px', lineHeight: '1.6' }}>
+                Verify the delegated phases and workloads above. When ready, click below to trigger the <strong>Email Dispatch Tool</strong>.
+                Each developer will receive a personalized task backlog with packages and deliverables.
               </p>
 
               <button
                 onClick={handleSendEmails}
                 disabled={emailSending}
-                style={{
-                  backgroundColor: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '12px 20px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
+                className="btn-dispatch"
               >
-                {emailSending ? '📧 Dispatching Task Emails...' : '📧 Send Approved Task Emails to Team'}
+                {emailSending ? (
+                  <>
+                    <span className="loading-spinner" style={{ width: '16px', height: '16px', borderWidth: '2px', margin: 0 }}></span>
+                    <span>Dispatching Individualized Task Backlogs...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>📧</span>
+                    <span>Dispatch Approved Task Emails to Team</span>
+                  </>
+                )}
               </button>
 
-              {/* EMAIL DISPATCH LOG CARDS */}
+              {/* Email Dispatch Logs */}
               {emailDispatches.length > 0 && (
-                <div style={{ marginTop: '16px', backgroundColor: '#1e293b', padding: '14px', borderRadius: '8px', border: '1px solid #334155' }}>
-                  <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: 'bold' }}>
-                    📧 Email Tool Dispatch Confirmation:
-                  </span>
-                  <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ 
+                  marginTop: '18px', 
+                  backgroundColor: 'rgba(15, 23, 42, 0.85)', 
+                  padding: '16px', 
+                  borderRadius: '10px', 
+                  border: '1px solid rgba(56, 189, 248, 0.3)' 
+                }}>
+                  <div style={{ 
+                    color: 'var(--secondary-light)', 
+                    fontSize: '13px', 
+                    fontWeight: '700',
+                    marginBottom: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>✓</span> Task Email Dispatch Confirmation
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {emailDispatches.map((d, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#cbd5e1' }}>
+                      <div key={idx} style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        fontSize: '12.5px', 
+                        color: 'var(--text-secondary)',
+                        padding: '6px 10px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '6px'
+                      }}>
                         <span>• <strong>{d.developer}</strong> ({d.email}) ➔ Assigned <strong>{d.count} tasks</strong></span>
                         {getStatusBadge(d.status)}
                       </div>
@@ -521,82 +740,80 @@ function App() {
               )}
             </div>
 
-          </div>
+          </section>
         )}
 
-        {/* AI ASSISTANT SECTION */}
-        {response && (
-          <div style={{ marginTop: '28px' }}>
-            <h3 style={{ fontSize: '15px', color: '#94a3b8', marginBottom: '10px' }}>
-              🤖 AI Assistant (Follow-up Chat)
-            </h3>
+        {/* AI ASSISTANT COPILOT (FOLLOW-UP CHAT) */}
+        {plan && (
+          <section className="assistant-chat-container">
+            <div className="panel-header" style={{ marginBottom: '16px' }}>
+              <div>
+                <h3 className="panel-title" style={{ fontSize: '16px' }}>
+                  <span className="panel-title-icon">💬</span>
+                  AI Copilot (Follow-up Planning Assistant)
+                </h3>
+                <p className="panel-desc">
+                  Ask questions about technology trade-offs, architecture decisions, or developer task prioritizations.
+                </p>
+              </div>
+            </div>
 
             {conversationHistory.length > 0 && (
-              <div style={{
-                backgroundColor: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '10px',
-                padding: '12px',
-                marginBottom: '12px',
-                maxHeight: '250px',
-                overflowY: 'auto'
-              }}>
+              <div className="chat-history-box">
                 {conversationHistory.map((msg, index) => (
-                  <div key={index} style={{
-                    marginBottom: '10px',
-                    textAlign: msg.role === 'user' ? 'right' : 'left'
-                  }}>
-                    <span style={{
-                      display: 'inline-block',
-                      backgroundColor: msg.role === 'user' ? '#6366f1' : '#1e293b',
-                      border: msg.role === 'assistant' ? '1px solid #334155' : 'none',
-                      color: '#f8fafc',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      fontSize: '13px',
-                      maxWidth: '85%',
-                      textAlign: 'left'
+                  <div 
+                    key={index} 
+                    className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`}
+                  >
+                    <div style={{ 
+                      fontSize: '11px', 
+                      fontWeight: '700', 
+                      opacity: 0.8,
+                      marginBottom: '4px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
                     }}>
-                      <strong>{msg.role === 'user' ? 'You' : '🤖 Assistant'}:</strong>
-                      <br />
-                      {msg.text}
-                    </span>
+                      {msg.role === 'user' ? '👤 You' : '🤖 AI Copilot'}
+                    </div>
+                    <div>{msg.text}</div>
                   </div>
                 ))}
               </div>
             )}
 
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAskAssistant()}
-              placeholder="Ask: What should Amal work on first? How to test payment APIs?"
-              style={inputStyle}
-            />
+            <div className="chat-input-bar">
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAskAssistant()}
+                placeholder="e.g. Which tasks should Amal start first? How should we structure database migrations?"
+                className="input-field"
+                style={{ marginBottom: 0 }}
+              />
 
-            <button
-              onClick={handleAskAssistant}
-              disabled={assistantLoading || !question.trim()}
-              style={{
-                width: '100%',
-                padding: '12px',
-                fontSize: '15px',
-                fontWeight: '600',
-                color: '#ffffff',
-                background: question.trim() ? 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)' : '#334155',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: question.trim() ? 'pointer' : 'not-allowed',
-                marginTop: '4px'
-              }}
-            >
-              {assistantLoading ? 'Thinking...' : '💬 Ask AI Assistant'}
-            </button>
-          </div>
+              <button
+                onClick={handleAskAssistant}
+                disabled={assistantLoading || !question.trim()}
+                className="btn-assistant"
+              >
+                {assistantLoading ? (
+                  <>
+                    <span className="loading-spinner" style={{ width: '14px', height: '14px', borderWidth: '2px', margin: 0 }}></span>
+                    <span>Thinking...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Send</span>
+                    <span>➔</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
         )}
 
-      </div>
+      </main>
     </div>
   )
 }

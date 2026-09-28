@@ -5,7 +5,7 @@ const {
   generatePlan,
   dispatchEmails,
   askAssistant,
-   getProjectHistory,
+  getProjectHistory,
   getProjectById
 } = require('../controllers/projectController');
 

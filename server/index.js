@@ -1,9 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-
-
-
 const { connectDB } = require('./config/db');
 const { ai } = require('./config/gemini');
 const { initializeVectorStore } = require('./services/ragService');

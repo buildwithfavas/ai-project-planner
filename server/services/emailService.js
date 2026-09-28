@@ -141,26 +141,3 @@ async function sendIndividualTaskEmails({ teamMembers, projectName, planData }) 
 }
 
 module.exports = { sendIndividualTaskEmails };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

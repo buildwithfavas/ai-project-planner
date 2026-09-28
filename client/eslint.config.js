@@ -19,6 +19,6 @@ export default defineConfig([
         ...globals.node,
       },
       parserOptions: { ecmaFeatures: { jsx: true } },
-    },,
+    },
   },
 ])

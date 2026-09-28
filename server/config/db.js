@@ -6,12 +6,9 @@ const connectDB = async () => {
     console.log(`🍃 MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error(`❌ MongoDB Connection Error: ${error.message}`);
-    // Optional: Keep server running even if DB is temporarily down, or exit(1)
     console.warn('⚠️ Server running without database persistence.');
   }
 };
-
-// Listen to runtime database events
 mongoose.connection.on('disconnected', () => {
   console.warn('⚠️ MongoDB disconnected.');
 });

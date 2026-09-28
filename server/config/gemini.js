@@ -6,7 +6,6 @@ if (!process.env.GEMINI_API_KEY) {
   process.exit(1);
 }
 
-// Singleton GoogleGenAI instance
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 module.exports = { ai };
