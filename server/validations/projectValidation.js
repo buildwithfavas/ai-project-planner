@@ -6,7 +6,7 @@ const teamMemberSchema = z.object({
   email: z.string().email('Invalid email address'),
   role: z.string().min(1, 'Member role is required'),
   skills: z.array(z.string()).optional().default([]),
-  activeTasksCount: z.number().int().min(0).optional().default(0),
+  activeTasksCount: z.number().int().min(0).max(3, 'Active tasks count cannot exceed 3').optional().default(0),
   isOnLeave: z.boolean().optional().default(false)
 });
 

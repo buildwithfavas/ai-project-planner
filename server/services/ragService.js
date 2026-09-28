@@ -1,5 +1,5 @@
 /**
- * RAG SERVICE (Embedding -> Vector Storage -> Cosine Similarity -> Retrieval)
+ * RAG SERVICE (Embedding -> In-Memory Vector Storage -> Cosine Similarity -> Policy Retrieval)
  */
 
 // 1. Knowledge Chunks (Domain-specific policies)
@@ -41,21 +41,27 @@ const POLICY_CHUNKS = [
   }
 ];
 
-// In-memory Vector Store (stores chunks with their embedding vectors)
+// In-memory Vector Store
 let vectorStore = [];
+let isInitializing = false;
 
 /**
  * Mathematical Cosine Similarity between two vectors: A . B / (||A|| * ||B||)
  */
 function cosineSimilarity(vecA, vecB) {
-  let dotProduct = 0.0;
-  let normA = 0.0;
-  let normB = 0.0;
+  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
 
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  const len = vecA.length;
+  for (let i = 0; i < len; i++) {
+    const a = vecA[i];
+    const b = vecB[i];
+    dotProduct += a * b;
+    normA += a * a;
+    normB += b * b;
   }
 
   if (normA === 0 || normB === 0) return 0;
@@ -63,40 +69,47 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 /**
- * 1. EMBED & STORE: Indexes all policy chunks into vectors on server startup
+ * Helper to embed a single chunk with exponential backoff retry
+ */
+async function embedChunkWithRetry(ai, chunk, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.embedContent({
+        model: 'gemini-embedding-001',
+        contents: `${chunk.topic}: ${chunk.content}`,
+      });
+      const values = response.embedding?.values || response.embeddings?.[0]?.values;
+      if (values) return { ...chunk, embedding: values };
+    } catch (err) {
+      if (attempt === maxRetries) {
+        console.warn(`⚠️ [RAG] Failed embedding chunk ${chunk.id} after ${maxRetries} attempts:`, err.message);
+        return null;
+      }
+      await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+  }
+  return null;
+}
+
+/**
+ * 1. EMBED & STORE: Indexes all policy chunks concurrently on server startup
  */
 async function initializeVectorStore(ai) {
-  if (vectorStore.length === POLICY_CHUNKS.length) return; // already fully indexed
+  if (vectorStore.length === POLICY_CHUNKS.length || isInitializing) return;
+  isInitializing = true;
 
-  console.log('⚡ [RAG] Generating embeddings for policy knowledge base...');
+  console.log('⚡ [RAG] Generating embeddings for policy knowledge base (parallel)...');
   try {
-    const tempStore = [];
-    for (const chunk of POLICY_CHUNKS) {
-      let retries = 0;
-      let values = null;
-      while (retries < 3 && !values) {
-        try {
-          const response = await ai.models.embedContent({
-            model: 'gemini-embedding-001',
-            contents: `${chunk.topic}: ${chunk.content}`,
-          });
-          values = response.embedding?.values || response.embeddings?.[0]?.values;
-        } catch (embedErr) {
-          retries++;
-          if (retries >= 3) throw embedErr;
-          console.warn(`[RAG] Embedding retry ${retries}/3 for ${chunk.id}: ${embedErr.message}`);
-          await new Promise(r => setTimeout(r, 1000 * retries));
-        }
-      }
-      tempStore.push({
-        ...chunk,
-        embedding: values
-      });
-    }
-    vectorStore = tempStore;
-    console.log(`✅ [RAG] Vector store ready. ${vectorStore.length} policy chunks indexed.`);
+    const results = await Promise.all(
+      POLICY_CHUNKS.map(chunk => embedChunkWithRetry(ai, chunk))
+    );
+
+    vectorStore = results.filter(Boolean);
+    console.log(`✅ [RAG] Vector store ready. ${vectorStore.length}/${POLICY_CHUNKS.length} policy chunks indexed.`);
   } catch (error) {
     console.error('❌ [RAG] Failed to index vector store:', error.message);
+  } finally {
+    isInitializing = false;
   }
 }
 
@@ -106,17 +119,17 @@ async function initializeVectorStore(ai) {
  */
 async function retrieveRelevantPolicies(ai, query) {
   try {
-    // If not initialized yet, initialize first
-    if (vectorStore.length === 0) {
+    // Ensure store is populated
+    if (vectorStore.length === 0 && !isInitializing) {
       await initializeVectorStore(ai);
     }
 
-    // Fallback if vectorStore is still empty
+    // Fallback if vector store is unavailable
     if (vectorStore.length === 0) {
       return POLICY_CHUNKS.map(c => `- ${c.topic}: ${c.content}`).join('\n');
     }
 
-    // Embed the query text
+    // Embed the incoming query
     const queryResponse = await ai.models.embedContent({
       model: 'gemini-embedding-001',
       contents: query,
@@ -127,38 +140,31 @@ async function retrieveRelevantPolicies(ai, query) {
       return POLICY_CHUNKS.map(c => `- ${c.topic}: ${c.content}`).join('\n');
     }
 
-    // Calculate cosine similarity against all chunks in vector store
+    // Score and rank all chunks
     const scoredChunks = vectorStore.map(chunk => ({
       topic: chunk.topic,
       content: chunk.content,
       similarity: cosineSimilarity(queryVector, chunk.embedding)
     }));
 
-    // Sort descending by similarity
     scoredChunks.sort((a, b) => b.similarity - a.similarity);
 
-    // Dynamic threshold: Only keep policies with >= 50% match
+    // Filter by threshold or take top matches
     const SIMILARITY_THRESHOLD = 0.50;
-    let selectedPolicies = scoredChunks.filter(chunk => chunk.similarity >= SIMILARITY_THRESHOLD);
+    let selected = scoredChunks.filter(c => c.similarity >= SIMILARITY_THRESHOLD);
 
-    // Fallback: If query was brief/vague, take top 2
-    if (selectedPolicies.length === 0) {
-      selectedPolicies = scoredChunks.slice(0, 2);
+    if (selected.length === 0) {
+      selected = scoredChunks.slice(0, 2);
+    } else if (selected.length > 4) {
+      selected = selected.slice(0, 4);
     }
 
-    // Safety cap: Max 4 policies to keep context compact
-    if (selectedPolicies.length > 4) {
-      selectedPolicies = selectedPolicies.slice(0, 4);
-    }
+    console.log(`🔍 [RAG] Selected ${selected.length} policies for query:`);
+    selected.forEach(r => console.log(`   - [${(r.similarity * 100).toFixed(1)}% match] ${r.topic}`));
 
-    console.log(`🔍 [RAG] Dynamically selected ${selectedPolicies.length} policies for this plan:`);
-    selectedPolicies.forEach(r => console.log(`   - [${(r.similarity * 100).toFixed(1)}% match] ${r.topic}`));
-
-    return selectedPolicies.map(r => `- ${r.topic}: ${r.content}`).join('\n');
-
+    return selected.map(r => `- ${r.topic}: ${r.content}`).join('\n');
   } catch (error) {
-    console.warn('⚠️ [RAG] Vector search failed, falling back to all policies:', error.message);
-    // Fallback if embedding quota fails
+    console.warn('⚠️ [RAG] Vector search fallback to default policies:', error.message);
     return POLICY_CHUNKS.map(c => `- ${c.topic}: ${c.content}`).join('\n');
   }
 }

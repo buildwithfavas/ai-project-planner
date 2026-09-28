@@ -87,16 +87,20 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 title="Comma separated technical skills"
               />
 
-              {/* 5. Active Tasks Count */}
+              {/* 5. Active Tasks Count (strictly capped at 3) */}
               <div className="task-count-wrap">
                 <input 
                   type="number" 
                   min="0" 
-                  max="10" 
-                  title="Current Active Tasks Count"
+                  max="3" 
+                  title="Current Active Tasks Count (Max 3)"
                   placeholder="Tasks" 
                   value={m.activeTasksCount ?? 0} 
-                  onChange={e => updateMember(i, 'activeTasksCount', parseInt(e.target.value, 10) || 0)} 
+                  onChange={e => {
+                    const rawVal = parseInt(e.target.value, 10);
+                    const clamped = isNaN(rawVal) ? 0 : Math.max(0, Math.min(3, rawVal));
+                    updateMember(i, 'activeTasksCount', clamped);
+                  }} 
                   className={`team-input task-count-input ${isAtCapacity ? 'task-count-input-capacity' : ''}`}
                 />
                 {isAtCapacity && (

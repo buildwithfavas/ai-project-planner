@@ -18,43 +18,44 @@ const {
 
 const router = express.Router();
 
-// 1. Rate Limiting Middlewares (guards against API quota exhaustion)
+// 1. Rate Limiting Middlewares (guards against API quota abuse while allowing smooth usage)
 const planLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 3, // Matches API quota - each plan uses 3-5 API calls
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 20 : 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
   message: {
     success: false,
-    error: 'Daily plan generation limit reached (3/day). Please try again tomorrow.'
+    error: 'Too many plan generation requests. Please wait a few minutes before trying again.'
   }
 });
 
 const assistantLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 5, // Matches API quota - each question uses 1 API call
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 40 : 200,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
   message: {
     success: false,
-    error: 'Daily assistant query limit reached (5/day). Please try again tomorrow.'
+    error: 'Too many assistant queries. Please wait a moment before sending another message.'
   }
 });
 
-// 2. Define Endpoints with Middleware Chains
+// 2. Define Endpoints with Middleware Chains & Aliases
 
-// POST /api/project/plan
-router.post('/plan', planLimiter, validate(generatePlanSchema), generatePlan);
+// POST /plan & /generate
+router.post(['/plan', '/generate'], planLimiter, validate(generatePlanSchema), generatePlan);
 
-// POST /api/project/send-emails
-router.post('/send-emails', validate(sendEmailsSchema), dispatchEmails);
+// POST /send-emails & /send-tasks
+router.post(['/send-emails', '/send-tasks'], validate(sendEmailsSchema), dispatchEmails);
 
-// POST /api/project/assistant
-router.post('/assistant', assistantLimiter, validate(assistantSchema), askAssistant);
+// POST /assistant & /ask
+router.post(['/assistant', '/ask'], assistantLimiter, validate(assistantSchema), askAssistant);
 
-
-
-// GET /api/project/history
+// GET /history
 router.get('/history', getProjectHistory);
 
-// GET /api/project/:id
+// GET /:id
 router.get('/:id', getProjectById);
-
 
 module.exports = router;

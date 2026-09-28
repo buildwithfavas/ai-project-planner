@@ -74,7 +74,7 @@ function App() {
     setConversationHistory([])
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/planner/generate`, {
+      const response = await fetch(`${API_BASE_URL}/api/project/plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -128,70 +128,30 @@ function App() {
     if (!plan) return
     setEmailSending(true)
 
-    // Aggregate tasks per developer
-    const developerBacklogs = {}
-    teamMembers.forEach(m => {
-      developerBacklogs[m.email] = {
-        name: m.name,
-        email: m.email,
-        role: m.role,
-        tasks: []
-      }
-    })
-
-    plan.phases.forEach(phase => {
-      phase.tasks.forEach(task => {
-        const devEmail = task.assignedToEmail
-        if (devEmail && developerBacklogs[devEmail]) {
-          developerBacklogs[devEmail].tasks.push({
-            title: task.title,
-            phase: phase.name,
-            estimatedDays: task.estimatedDays,
-            packages: task.recommendedPackages || [],
-            deliverables: task.keyDeliverables || []
-          })
-        }
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/project/send-emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          projectName: plan.projectName || projectName,
+          teamMembers,
+          plan
+        })
       })
-    })
+      const resData = await res.json()
 
-    const results = []
-
-    for (const email of Object.keys(developerBacklogs)) {
-      const dev = developerBacklogs[email]
-      if (dev.tasks.length === 0) continue
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/planner/send-tasks`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            developerEmail: dev.email,
-            developerName: dev.name,
-            developerRole: dev.role,
-            projectName: plan.projectName || projectName,
-            tasks: dev.tasks
-          })
-        })
-        const resData = await res.json()
-
-        results.push({
-          developer: dev.name,
-          email: dev.email,
-          count: dev.tasks.length,
-          status: resData.mockMode ? 'Mock Mode' : (resData.success ? 'Real SMTP' : 'Failed')
-        })
-      } catch (err) {
-        results.push({
-          developer: dev.name,
-          email: dev.email,
-          count: dev.tasks.length,
-          status: 'Failed'
-        })
+      if (resData.success) {
+        setEmailDispatches(resData.dispatches || [])
+      } else {
+        alert(resData.error || 'Failed to dispatch emails.')
       }
+    } catch (err) {
+      console.error(err)
+      alert('Network Error during email dispatch.')
+    } finally {
+      setEmailSending(false)
     }
-
-    setEmailDispatches(results)
-    setEmailSending(false)
   }
 
   // 5. AI COPILOT CHAT HANDLER
@@ -205,22 +165,27 @@ function App() {
     setAssistantLoading(true)
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/planner/ask`, {
+      const res = await fetch(`${API_BASE_URL}/api/project/assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userMessage.text,
-          projectId,
-          planContext: plan,
+          projectContext: {
+            projectName,
+            technology,
+            experience,
+            deadline
+          },
+          currentPlan: plan,
           conversationHistory: newHistory
         })
       })
       const data = await res.json()
 
       if (data.success) {
-        setConversationHistory([...newHistory, { role: 'assistant', text: data.reply }])
+        setConversationHistory([...newHistory, { role: 'assistant', text: data.answer || data.reply }])
       } else {
-        setConversationHistory([...newHistory, { role: 'assistant', text: 'Error: ' + data.error }])
+        setConversationHistory([...newHistory, { role: 'assistant', text: 'Error: ' + (data.error || 'Unknown error') }])
       }
     } catch (err) {
       setConversationHistory([...newHistory, { role: 'assistant', text: 'Failed to communicate with AI Assistant.' }])

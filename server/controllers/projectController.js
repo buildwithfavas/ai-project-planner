@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { ai } = require('../config/gemini');
 const { validateProjectPlan, generateMultiStepPlan, ASSISTANT_MODEL } = require('../services/promptService');
 const { sendIndividualTaskEmails } = require('../services/emailService');
@@ -6,7 +7,7 @@ const Project = require('../models/Project');
 
 /**
  * 1. Generate & Persist Project Plan
- * POST /api/project/plan
+ * POST /api/project/plan | POST /api/planner/generate
  */
 const generatePlan = async (req, res, next) => {
   try {
@@ -28,23 +29,25 @@ const generatePlan = async (req, res, next) => {
       throw new AppError('Received malformed plan from AI. Please try again.', 502);
     }
 
-    // Persist to MongoDB (gracefully handles if DB is in offline/fallback mode)
+    // Persist to MongoDB (graceful fallback if DB is not connected)
     let savedProject = null;
-    try {
-      savedProject = await Project.create({
-        projectName,
-        description,
-        experience,
-        technology,
-        deadline,
-        teamMembers,
-        plan,
-        workflowSteps,
-        status: 'DRAFT'
-      });
-      console.log(`💾 Saved Project to MongoDB with ID: ${savedProject._id}`);
-    } catch (dbErr) {
-      console.warn('⚠️ Could not persist to MongoDB:', dbErr.message);
+    if (mongoose.connection.readyState === 1) {
+      try {
+        savedProject = await Project.create({
+          projectName,
+          description,
+          experience,
+          technology,
+          deadline,
+          teamMembers,
+          plan,
+          workflowSteps,
+          status: 'DRAFT'
+        });
+        console.log(`💾 Saved Project to MongoDB with ID: ${savedProject._id}`);
+      } catch (dbErr) {
+        console.warn('⚠️ Could not persist project to MongoDB:', dbErr.message);
+      }
     }
 
     console.log('✅ Plan generated & validated successfully.');
@@ -61,7 +64,7 @@ const generatePlan = async (req, res, next) => {
 
 /**
  * 2. Dedicated Email Dispatch & Status Update
- * POST /api/project/send-emails
+ * POST /api/project/send-emails | POST /api/planner/send-tasks
  */
 const dispatchEmails = async (req, res, next) => {
   try {
@@ -75,13 +78,13 @@ const dispatchEmails = async (req, res, next) => {
       planData: plan
     });
 
-    // Update project status to DISPATCHED in MongoDB if projectId is provided
-    if (projectId) {
+    // Update project status to DISPATCHED in MongoDB if valid ObjectId is provided
+    if (projectId && mongoose.Types.ObjectId.isValid(projectId) && mongoose.connection.readyState === 1) {
       try {
         await Project.findByIdAndUpdate(projectId, {
           status: 'DISPATCHED',
           emailDispatches: dispatches.map(d => ({
-            recipient: d.recipient,
+            recipient: d.email || d.recipient,
             status: d.status,
             dispatchedAt: new Date()
           }))
@@ -104,27 +107,28 @@ const dispatchEmails = async (req, res, next) => {
 
 /**
  * 3. AI Assistant Follow-Up Q&A
- * POST /api/project/assistant
+ * POST /api/project/assistant | POST /api/planner/ask
  */
 const askAssistant = async (req, res, next) => {
   try {
-    const { question, projectContext, currentPlan, conversationHistory } = req.body;
+    const { question, projectContext, currentPlan, planContext, conversationHistory } = req.body;
+    const activePlan = currentPlan || planContext || {};
 
     let historyText = '';
-    if (conversationHistory && conversationHistory.length > 0) {
+    if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
       historyText = conversationHistory
         .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
         .join('\n');
     }
 
     const assistantPrompt = `PROJECT CONTEXT:
-Project Name: ${projectContext.projectName}
-Technology: ${projectContext.technology}
-Experience Level: ${projectContext.experience}
-Deadline: ${projectContext.deadline} days
+Project Name: ${projectContext?.projectName || 'Project'}
+Technology: ${projectContext?.technology || 'N/A'}
+Experience Level: ${projectContext?.experience || 'Intermediate'}
+Deadline: ${projectContext?.deadline || 'N/A'} days
 
 CURRENT PROJECT PLAN:
-${JSON.stringify(currentPlan, null, 2)}
+${JSON.stringify(activePlan, null, 2)}
 
 CONVERSATION HISTORY:
 ${historyText || 'No previous conversation.'}
@@ -149,7 +153,8 @@ Keep answers concise and actionable.`;
 
     return res.status(200).json({
       success: true,
-      answer: response.text
+      answer: response.text,
+      reply: response.text
     });
   } catch (error) {
     next(error);
@@ -162,8 +167,12 @@ Keep answers concise and actionable.`;
  */
 const getProjectHistory = async (req, res, next) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(200).json({ success: true, count: 0, projects: [] });
+    }
+
     const projects = await Project.find()
-      .select('projectName description technology deadline status createdAt plan.totalEstimatedDays')
+      .select('projectName description technology deadline status createdAt plan.totalEstimatedDays plan.estimatedTotalDays')
       .sort({ createdAt: -1 })
       .limit(20);
 
@@ -183,8 +192,11 @@ const getProjectHistory = async (req, res, next) => {
  */
 const getProjectById = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      throw new AppError('Invalid Project ID format', 400);
+    }
 
+    const project = await Project.findById(req.params.id);
     if (!project) {
       throw new AppError('Project not found with the requested ID', 404);
     }

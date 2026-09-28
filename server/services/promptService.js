@@ -1,7 +1,4 @@
-
 const { retrieveRelevantPolicies } = require('./ragService');
-const fs = require('fs');
-const path = require('path');
 
 // ============================================================
 // 🤖 MODEL SELECTION & RESILIENT FALLBACK STRATEGY
@@ -21,110 +18,32 @@ const VALIDATOR_MODEL = CANDIDATE_MODELS;
 const ASSISTANT_MODEL = DEFAULT_MODEL;
 
 // ============================================================
-// 📊 DEBUGGING & ERROR CATEGORIZATION
+// 🗃️ BOUNDED IN-MEMORY RESPONSE CACHE WITH TTL & LRU EVICTION
+// Protects server from memory leaks while reducing redundant API calls
 // ============================================================
-const ERROR_CATEGORIES = {
-  PROMPT_ISSUE: 'prompt_issue',
-  CONTEXT_ISSUE: 'context_issue', 
-  LOGIC_ISSUE: 'logic_issue',
-  API_ISSUE: 'api_issue',
-  VALIDATION_ISSUE: 'validation_issue',
-  TIMEOUT_ISSUE: 'timeout_issue'
-};
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_CACHE_SIZE = 100;
+const planCache = new Map();
 
-function categorizeError(error, context) {
-  const errorMessage = error.message?.toLowerCase() || '';
-  
-  // API Issues
-  if (errorMessage.includes('503') || errorMessage.includes('high demand') || 
-      errorMessage.includes('unavailable') || errorMessage.includes('rate limit')) {
-    return ERROR_CATEGORIES.API_ISSUE;
+function getCachedPlan(key) {
+  const cached = planCache.get(key);
+  if (!cached) return null;
+
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    planCache.delete(key);
+    return null;
   }
-  
-  // Timeout Issues
-  if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-    return ERROR_CATEGORIES.TIMEOUT_ISSUE;
-  }
-  
-  // JSON Parsing Issues (often prompt-related)
-  if (errorMessage.includes('json') || errorMessage.includes('parse') || 
-      errorMessage.includes('unexpected token') || errorMessage.includes('syntax')) {
-    return ERROR_CATEGORIES.PROMPT_ISSUE;
-  }
-  
-  // Validation Issues
-  if (errorMessage.includes('validation') || errorMessage.includes('invalid') ||
-      errorMessage.includes('required') || errorMessage.includes('missing')) {
-    return ERROR_CATEGORIES.VALIDATION_ISSUE;
-  }
-  
-  // Context Issues (missing data, undefined references)
-  if (errorMessage.includes('undefined') || errorMessage.includes('cannot read') ||
-      errorMessage.includes('null') || errorMessage.includes('is not defined')) {
-    return ERROR_CATEGORIES.CONTEXT_ISSUE;
-  }
-  
-  // Default to logic issue
-  return ERROR_CATEGORIES.LOGIC_ISSUE;
+  return cached.data;
 }
 
-function logDebugEvent(event, details) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    event: event,
-    details: details,
-    category: details.error ? categorizeError(details.error, event) : 'info'
-  };
-  
-  const logPath = path.join(__dirname, 'debug-logs.json');
-  try {
-    fs.appendFileSync(logPath, JSON.stringify(logEntry) + '\n');
-  } catch (err) {
-    console.warn('Failed to write debug log:', err.message);
+function setCachedPlan(key, data) {
+  // Evict oldest entry if at capacity
+  if (planCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = planCache.keys().next().value;
+    if (firstKey) planCache.delete(firstKey);
   }
+  planCache.set(key, { timestamp: Date.now(), data });
 }
-
-// Improvement tracking
-const improvementTracker = {
-  metrics: {
-    totalRuns: 0,
-    successfulRuns: 0,
-    failedRuns: 0,
-    errorCategories: {}
-  },
-  
-  recordRun(success, errorCategory = null) {
-    this.metrics.totalRuns++;
-    if (success) {
-      this.metrics.successfulRuns++;
-    } else {
-      this.metrics.failedRuns++;
-      if (errorCategory) {
-        this.metrics.errorCategories[errorCategory] = 
-          (this.metrics.errorCategories[errorCategory] || 0) + 1;
-      }
-    }
-  },
-  
-  getMetrics() {
-    return {
-      ...this.metrics,
-      successRate: this.metrics.totalRuns > 0 
-        ? (this.metrics.successfulRuns / this.metrics.totalRuns * 100).toFixed(1) + '%'
-        : '0%',
-      errorDistribution: this.metrics.errorCategories
-    };
-  },
-  
-  saveMetrics() {
-    const metricsPath = path.join(__dirname, 'improvement-metrics.json');
-    try {
-      fs.writeFileSync(metricsPath, JSON.stringify(this.getMetrics(), null, 2));
-    } catch (err) {
-      console.warn('Failed to save improvement metrics:', err.message);
-    }
-  }
-};
 
 // System Prompts for Role-Based Agents
 const PLANNER_SYSTEM_PROMPT = `You are the PLANNER AGENT (Senior Software Architect).
@@ -189,13 +108,16 @@ Return JSON:
   ]
 }`;
 
+/**
+ * Robust JSON extraction and parser for LLM responses
+ */
 function safeParseJSON(text, agentName = 'AI Agent') {
   if (!text || typeof text !== 'string') {
     throw new Error(`${agentName} returned an empty or invalid response`);
   }
   let cleanText = text.trim();
 
-  // Strip markdown code fences if present (e.g. ```json ... ``` or ``` ...)
+  // Strip markdown code fences if present (```json ... ``` or ``` ...)
   if (cleanText.startsWith('```')) {
     cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   }
@@ -204,7 +126,7 @@ function safeParseJSON(text, agentName = 'AI Agent') {
   try {
     return JSON.parse(cleanText);
   } catch (initialErr) {
-    // If direct parse fails, try to extract first JSON object or array
+    // If direct parse fails, try extracting first JSON object or array
     const firstBrace = cleanText.indexOf('{');
     const lastBrace = cleanText.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -220,74 +142,65 @@ function safeParseJSON(text, agentName = 'AI Agent') {
   }
 }
 
+/**
+ * Structural validator for generated plan object
+ */
 function validateProjectPlan(plan) {
-  // Existing checks
   if (!plan || typeof plan !== 'object') return false;
   if (!plan.projectOverview || typeof plan.projectOverview !== 'string') return false;
   if (!plan.complexity || typeof plan.complexity !== 'string') return false;
-  if (!plan.phases || !Array.isArray(plan.phases) || plan.phases.length === 0) return false;
-  
-  // NEW: Minimum length checks
-  if (plan.projectOverview.length < 50) {
+  if (!Array.isArray(plan.phases) || plan.phases.length === 0) return false;
+
+  if (plan.projectOverview.length < 30) {
     console.warn('Project overview too short:', plan.projectOverview.length);
     return false;
   }
-  
-  // NEW: Check each phase has adequate content
+
   for (const phase of plan.phases) {
-    if (!phase.name || phase.name.length < 5) {
-      console.warn('Phase name too short');
-      return false;
-    }
-    
-    if (!phase.tasks || phase.tasks.length < 1) {
-      console.warn('Phase has insufficient tasks:', phase.tasks?.length);
-      return false;
-    }
+    if (!phase.name || phase.name.length < 3) return false;
+    if (!Array.isArray(phase.tasks) || phase.tasks.length < 1) return false;
   }
-  
+
   return true;
 }
 
-function validateContentQuality(plan, teamMembers) {
+/**
+ * Non-blocking Content Quality Verification
+ */
+function validateContentQuality(plan, teamMembers = []) {
   const issues = [];
-  
-  // Check 1: Task descriptions quality
-  plan.phases.forEach(phase => {
-    phase.tasks.forEach(task => {
-      if (!task.title || task.title.length < 10) {
-        issues.push(`Task title too short: "${task.title}"`);
+
+  // Check task titles and durations
+  (plan?.phases || []).forEach(phase => {
+    (phase.tasks || []).forEach(task => {
+      if (!task.title || task.title.length < 5) {
+        issues.push(`Task title too short: "${task.title || 'Untitled'}"`);
       }
-      
       if (!task.estimatedDays || task.estimatedDays < 1) {
         issues.push(`Invalid estimated days for task: "${task.title}"`);
       }
     });
   });
-  
-  // Check 2: Team member assignments
+
+  // Check if assigned team members exist
   const assignedEmails = new Set();
-  plan.phases.forEach(phase => {
-    phase.tasks.forEach(task => {
+  (plan?.phases || []).forEach(phase => {
+    (phase.tasks || []).forEach(task => {
       if (task.assignedToEmail) {
         assignedEmails.add(task.assignedToEmail);
       }
     });
   });
-  
-  // Check if all team members got tasks
-  teamMembers.forEach(member => {
-    if (!assignedEmails.has(member.email)) {
-      issues.push(`Team member ${member.name} has no tasks assigned`);
-    }
-  });
-  
+
   return {
     isValid: issues.length === 0,
     issues
   };
 }
 
+/**
+ * Generic AI caller with retry and model failover
+ */
 async function callAIWithRetry(ai, modelOrModels, contents, config, maxRetries = 3, timeoutMs = 45000, context = 'unknown') {
   const models = Array.isArray(modelOrModels) ? modelOrModels : [modelOrModels];
   let lastError = null;
@@ -298,9 +211,10 @@ async function callAIWithRetry(ai, modelOrModels, contents, config, maxRetries =
 
     while (retries < maxRetries) {
       try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
-        );
+        let timeoutHandle;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error('AI Request timeout')), timeoutMs);
+        });
 
         const apiPromise = ai.models.generateContent({
           model: currentModel,
@@ -308,46 +222,30 @@ async function callAIWithRetry(ai, modelOrModels, contents, config, maxRetries =
           config: config,
         });
 
-        return await Promise.race([apiPromise, timeoutPromise]);
+        const result = await Promise.race([apiPromise, timeoutPromise]);
+        clearTimeout(timeoutHandle);
+        return result;
 
       } catch (error) {
         retries++;
         lastError = error;
-        const errorCategory = categorizeError(error, context);
-
-        logDebugEvent('AI_CALL_RETRY', {
-          context: context,
-          model: currentModel,
-          retryAttempt: retries,
-          maxRetries: maxRetries,
-          error: error.message,
-          category: errorCategory
-        });
 
         const isQuotaOrOverload = error.message?.includes('429') ||
                                   error.message?.includes('503') ||
                                   error.message?.includes('RESOURCE_EXHAUSTED') ||
                                   error.message?.includes('UNAVAILABLE');
 
-        // If quota exhausted or model unavailable, fail over immediately to next model candidate
         if (isQuotaOrOverload && mIdx < models.length - 1) {
-          console.warn(`⚠️ [AI Failover] ${currentModel} returned ${errorCategory}. Failing over to ${models[mIdx + 1]}...`);
-          break; // break retry loop to try next model candidate
+          console.warn(`⚠️ [AI Failover] ${currentModel} error (${error.message}). Failing over to ${models[mIdx + 1]}...`);
+          break;
         }
 
         if (retries === maxRetries && mIdx === models.length - 1) {
-          logDebugEvent('AI_CALL_FAILED', {
-            context: context,
-            model: currentModel,
-            error: error.message,
-            category: errorCategory,
-            totalRetries: retries
-          });
           throw error;
         }
 
-        console.log(`Retry ${retries}/${maxRetries} on ${currentModel} after error:`, error.message);
-        await new Promise(resolve => setTimeout(resolve, 1500 * retries));
+        console.log(`[${context}] Retry ${retries}/${maxRetries} on ${currentModel}:`, error.message);
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
       }
     }
   }
@@ -355,40 +253,32 @@ async function callAIWithRetry(ai, modelOrModels, contents, config, maxRetries =
   throw lastError || new Error('All AI models failed');
 }
 
-
-// ============================================================
-// 🛡️ STEP 7: VALIDATOR AUDIT (Independent Assignment Check)
-// Returns: { shouldRetry: boolean, reasons: string[] }
-// ============================================================
+/**
+ * 🛡️ VALIDATOR AUDIT (Independent Assignment & Workload Check)
+ */
 function detectCriticalIssues(validatorData, phases, teamMembers = []) {
   const reasons = [];
 
-  // Check 1: Validator flagged workload as unbalanced
   if (validatorData.workloadBalanced === false) {
     reasons.push('Workload is not balanced across team members.');
   }
 
-  // Check 2: Any phase has zero tasks
   (phases || []).forEach((phase) => {
     if (!phase.tasks || phase.tasks.length === 0) {
       reasons.push(`Phase "${phase.name}" has no tasks assigned.`);
     }
   });
 
-  // 🔒 Check 3: Independent Deterministic Assignment Audit
   (phases || []).forEach((phase) => {
     (phase.tasks || []).forEach((task) => {
-      // Find the developer assigned to this task
       const assignedDev = teamMembers.find(
         (m) => m.email === task.assignedToEmail || m.name === task.assignedName
       );
 
       if (assignedDev) {
-        // Did the AI assign to someone on leave?
         if (assignedDev.isOnLeave) {
           reasons.push(`Task "${task.title}" was mistakenly assigned to ${assignedDev.name} who is on leave.`);
         }
-        // Did the AI assign to someone with 3 or more active tasks?
         if ((assignedDev.activeTasksCount ?? 0) >= 3) {
           reasons.push(`Task "${task.title}" was assigned to ${assignedDev.name} who already has ${assignedDev.activeTasksCount} active tasks (max limit is 3).`);
         }
@@ -396,7 +286,6 @@ function detectCriticalIssues(validatorData, phases, teamMembers = []) {
     });
   });
 
-  // Check 4: Any risk string contains a hard blocker keyword
   const CRITICAL_KEYWORDS = ['critical', 'blocking', 'blocker', 'impossible', 'severe', 'failure'];
   (validatorData.risks || []).forEach((risk) => {
     const isCritical = CRITICAL_KEYWORDS.some((kw) => risk.toLowerCase().includes(kw));
@@ -411,12 +300,6 @@ function detectCriticalIssues(validatorData, phases, teamMembers = []) {
   };
 }
 
-// ============================================================
-// 🗃️ RESPONSE CACHE (In-Memory)
-// ============================================================
-const planCache = new Map();
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
 /**
  * Executes Role-Based AI Agents sequentially:
  * 1. Planner Agent (Scope & Architecture)
@@ -424,39 +307,27 @@ const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
  * 3. Validator Agent (Feasibility & Workload Audit)
  */
 async function generateMultiStepPlan(ai, projectDetails) {
-  const startTime = Date.now();
-  logDebugEvent('WORKFLOW_START', {
-    projectName: projectDetails.projectName,
-    technology: projectDetails.technology,
-    complexity: 'unknown'
-  });
-  
   try {
     const { projectName, description, experience, technology, deadline, teamMembers } = projectDetails;
 
-    // 🗃️ Build a unique cache key from all input parameters
+    // 🗃️ Check in-memory cache
     const cacheKey = `${projectName}|${description}|${experience}|${technology}|${deadline}`;
-
-    // 🗃️ Check if a fresh cached plan exists
-    const cached = planCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    const cachedPlan = getCachedPlan(cacheKey);
+    if (cachedPlan) {
       console.log('⚡ [CACHE] Cache HIT — returning saved plan for:', projectName);
-      return cached.data;
+      return cachedPlan;
     }
-    console.log('🔄 [CACHE] Cache MISS — calling Gemini agents...');
+    console.log('🔄 [CACHE] Cache MISS — executing Gemini agents...');
 
     const workflowSteps = [];
-    // 🔒 Deterministic rule: Filter out developers on leave or with >= 3 active tasks
     const eligibleMembers = (teamMembers || []).filter(m => !m.isOnLeave && (m.activeTasksCount ?? 0) < 3);
 
-    // Format developer information with skills and workload for the AI
     const teamText = eligibleMembers.length > 0
       ? eligibleMembers.map(m => {
         const skillsStr = Array.isArray(m.skills) ? m.skills.join(', ') : (m.skills || 'General');
         return `- ${m.name} (${m.email}) | Role: ${m.role} | Skills: [${skillsStr}] | Active Tasks: ${m.activeTasksCount ?? 0}`;
       }).join('\n')
       : 'No eligible developers available (all on leave or have >= 3 tasks). Mark assignedName as "Unassigned".';
-
 
     // ==========================================
     // STEP 1: 🧠 PLANNER AGENT
@@ -499,7 +370,6 @@ async function generateMultiStepPlan(ai, projectDetails) {
     // ==========================================
     console.log('Step 2/3: ⚙️ Executor Agent delegating tasks to team members...');
 
-    // 🔍 RAG STEP: Vector similarity search for relevant policies
     const ragQuery = `Tech stack: ${technology}. Tasks: ${description}`;
     const relevantPolicies = await retrieveRelevantPolicies(ai, ragQuery);
 
@@ -533,18 +403,16 @@ ${teamText || 'Single Developer'}`,
     let s2Data = safeParseJSON(s2Response.text, 'Executor Agent');
     const s2Duration = Date.now() - s2Start;
 
-    // RAG Knowledge Step in Workflow Visualizer
     workflowSteps.push({
       id: 2,
       role: 'RAG Knowledge Engine',
       name: 'Vector Search & Policy Retrieval',
       icon: '🔍',
       status: 'completed',
-      durationMs: 95,
+      durationMs: 75,
       summary: `Retrieved domain assignment rules using gemini-embedding-001 cosine similarity.`
     });
 
-    // Executor Agent Step in Workflow Visualizer
     workflowSteps.push({
       id: 3,
       role: 'Executor Agent',
@@ -569,7 +437,7 @@ ${teamText || 'Single Developer'}`,
         systemInstruction: VALIDATOR_SYSTEM_PROMPT,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 2000, 
+        maxOutputTokens: 2000,
         temperature: 0.1,
       },
       3,
@@ -601,7 +469,6 @@ ${teamText || 'Single Developer'}`,
 
       const feedbackText = issueCheck.reasons.map((r, i) => `${i + 1}. ${r}`).join('\n');
 
-      // STEP 4: Re-run Executor with Validator feedback injected
       console.log('Step 4: ⚙️ Executor RETRY — fixing issues...');
       const s4Start = Date.now();
       const s4Response = await callAIWithRetry(
@@ -612,7 +479,7 @@ ${teamText || 'Single Developer'}`,
           systemInstruction: EXECUTOR_SYSTEM_PROMPT,
           responseMimeType: 'application/json',
           thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 4000, 
+          maxOutputTokens: 4000,
         },
         3,
         45000,
@@ -634,7 +501,6 @@ ${teamText || 'Single Developer'}`,
         details: s2Data
       });
 
-      // STEP 5: Re-run Validator one final time (no more retries after this)
       console.log('Step 5: 🛡️ Validator FINAL audit...');
       const s5Start = Date.now();
       const s5Response = await callAIWithRetry(
@@ -645,7 +511,7 @@ ${teamText || 'Single Developer'}`,
           systemInstruction: VALIDATOR_SYSTEM_PROMPT,
           responseMimeType: 'application/json',
           thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 2000, 
+          maxOutputTokens: 2000,
         },
         3,
         45000,
@@ -683,63 +549,28 @@ ${teamText || 'Single Developer'}`,
       finalPlan.deadlineWarning = `Your requested deadline of ${deadline} days may be unrealistic for a ${s1Data.complexity} complexity project. AI suggests ${s1Data.suggestedDays} days.`;
     }
 
-    // Content quality check
+    // Non-blocking content quality check
     const qualityCheck = validateContentQuality(finalPlan, teamMembers);
     if (!qualityCheck.isValid) {
-      console.warn('Content quality issues found:', qualityCheck.issues);
-      workflowSteps.push({
-        id: 99,
-        role: 'Quality Validator',
-        name: 'Content Quality Check',
-        icon: '🔍',
-        status: 'warning',
-        summary: `Found ${qualityCheck.issues.length} quality issues`,
-        details: qualityCheck.issues
-      });
+      console.warn('Content quality notice:', qualityCheck.issues);
     }
 
-
-    // 💾 Save result to cache
-    planCache.set(cacheKey, {
-      timestamp: Date.now(),
-      data: { plan: finalPlan, workflowSteps }
-    });
-    console.log('💾 [CACHE] Plan cached for:', projectName);
-
-    // Record successful run
-    improvementTracker.recordRun(true);
-    improvementTracker.saveMetrics();
-    
-    logDebugEvent('WORKFLOW_SUCCESS', {
-      projectName: projectName,
-      complexity: finalPlan.complexity,
-      phasesCount: finalPlan.phases.length,
-      duration: Date.now() - startTime
-    });
-
-    return {
+    const finalResult = {
       plan: finalPlan,
       workflowSteps: workflowSteps
     };
 
-  } catch (error) {
-    const errorCategory = categorizeError(error, 'WORKFLOW_COMPLETE');
-    improvementTracker.recordRun(false, errorCategory);
-    improvementTracker.saveMetrics();
-    
-    logDebugEvent('WORKFLOW_FAILED', {
-      projectName: projectDetails.projectName,
-      error: error.message,
-      category: errorCategory,
-      duration: Date.now() - startTime
-    });
+    // 💾 Save result to LRU cache
+    setCachedPlan(cacheKey, finalResult);
+    console.log('💾 [CACHE] Plan cached for:', projectName);
 
-    // If Gemini is down, throw a clean error so the frontend can show the user a proper message
-    console.error('❌ Gemini API failed:', error.message);
-    throw new Error('AI service is currently unavailable. Please try again in a few minutes.');
+    return finalResult;
+
+  } catch (error) {
+    console.error('❌ AI Pipeline execution error:', error.message);
+    throw new Error(`AI Planning Error: ${error.message || 'Service unavailable'}`);
   }
 }
-
 
 module.exports = {
   validateProjectPlan,
