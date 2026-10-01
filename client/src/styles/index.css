@@ -4,66 +4,67 @@
   --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Color Palette - Warm Obsidian, Sunset Amber & Fiery Orange */
-  --bg-dark: #0c0906;
-  --bg-card: rgba(22, 16, 11, 0.88);
-  --bg-card-hover: rgba(32, 23, 16, 0.95);
-  --bg-card-elevated: #1d140e;
-  --bg-input: rgba(16, 12, 8, 0.85);
-  --bg-input-focus: rgba(24, 18, 12, 0.95);
+  /* Light Theme Color Palette - Clean Indigo, Slate & Sky Accents */
+  --bg-dark: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-card-hover: #ffffff;
+  --bg-card-elevated: #f1f5f9;
+  --bg-input: #ffffff;
+  --bg-input-focus: #ffffff;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-card: rgba(249, 115, 22, 0.22);
-  --border-card-hover: rgba(251, 146, 60, 0.45);
-  --border-focus: #f97316;
+  --border-subtle: #e2e8f0;
+  --border-card: #e2e8f0;
+  --border-card-hover: #cbd5e1;
+  --border-focus: #6366f1;
 
-  /* Accent Colors - Sunset Orange, Amber Gold, Warm Terracotta */
-  --primary: #f97316;
-  --primary-light: #fb923c;
-  --primary-glow: rgba(249, 115, 22, 0.35);
+  /* Accent Colors - Vibrant Indigo & Ocean Sky */
+  --primary: #4f46e5;
+  --primary-light: #6366f1;
+  --primary-glow: rgba(79, 70, 229, 0.2);
 
-  --secondary: #ea580c;
-  --secondary-light: #fdba74;
-  --secondary-glow: rgba(234, 88, 12, 0.28);
+  --secondary: #0284c7;
+  --secondary-light: #0ea5e9;
+  --secondary-glow: rgba(14, 165, 233, 0.2);
 
-  --accent-warm: #f59e0b;
-  --accent-warm-light: #fbbf24;
+  --accent-warm: #d97706;
+  --accent-warm-light: #f59e0b;
 
-  --accent-gold: #d97706;
-  --accent-gold-light: #fde68a;
+  --accent-gold: #b45309;
+  --accent-gold-light: #d97706;
 
-  --success: #10b981;
-  --success-light: #34d399;
-  --success-bg: rgba(16, 185, 129, 0.12);
-  --success-border: rgba(16, 185, 129, 0.35);
+  --success: #059669;
+  --success-light: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.08);
+  --success-border: rgba(16, 185, 129, 0.25);
 
-  --warning: #f59e0b;
-  --warning-light: #fbbf24;
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --warning-border: rgba(245, 158, 11, 0.35);
+  --warning: #d97706;
+  --warning-light: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.08);
+  --warning-border: rgba(245, 158, 11, 0.25);
 
-  --danger: #ef4444;
-  --danger-light: #f87171;
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --danger-border: rgba(239, 68, 68, 0.35);
+  --danger: #dc2626;
+  --danger-light: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.08);
+  --danger-border: rgba(239, 68, 68, 0.25);
 
-  /* Text Colors */
-  --text-primary: #fffaf5;
-  --text-secondary: #f2ded0;
-  --text-muted: #b0998a;
-  --text-dim: #7c6a5d;
+  /* Text Colors - Crisp Slate & Charcoal */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
 
   /* Shadows & Glassmorphism */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 35px -5px rgba(249, 115, 22, 0.3);
-  --shadow-glow-amber: 0 0 30px -5px rgba(245, 158, 11, 0.25);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.15);
+  --shadow-glow-amber: 0 0 25px rgba(245, 158, 11, 0.15);
   
   --backdrop-blur: blur(16px);
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
   /* Standard transitions */
   --transition-fast: 0.15s ease;
@@ -81,10 +82,10 @@ body {
   min-height: 100vh;
   background-color: var(--bg-dark);
   background-image: 
-    radial-gradient(circle at 14% 18%, rgba(249, 115, 22, 0.14) 0%, transparent 48%),
-    radial-gradient(circle at 86% 28%, rgba(245, 158, 11, 0.12) 0%, transparent 42%),
-    radial-gradient(circle at 50% 82%, rgba(234, 88, 12, 0.08) 0%, transparent 50%),
-    linear-gradient(180deg, #0c0906 0%, #120c08 100%);
+    radial-gradient(circle at 12% 16%, rgba(99, 102, 241, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 88% 24%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 85%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -110,16 +111,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(12, 9, 6, 0.8);
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(249, 115, 22, 0.35);
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(251, 146, 60, 0.65);
+  background: #94a3b8;
 }
 
 /* Base Typography */
@@ -137,10 +138,10 @@ code, kbd, samp, pre {
 /* Keyframes */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(249, 115, 22, 0.35);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
   }
   50% {
-    box-shadow: 0 0 30px rgba(245, 158, 11, 0.6);
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.6);
   }
 }
 

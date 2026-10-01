@@ -1,21 +1,14 @@
 const { retrieveRelevantPolicies } = require('./ragService');
 
 // ============================================================
-// 🤖 MODEL SELECTION & RESILIENT FALLBACK STRATEGY
-// Uses primary model with automatic failover to flash-lite variants.
-// Configured with zero-budget thinking for ultra-fast, structured JSON.
+// 🤖 LLM PROVIDER CONFIGURATIONS (Ollama Primary + OpenRouter Fallback)
 // ============================================================
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const CANDIDATE_MODELS = [
-  DEFAULT_MODEL,
-  'gemini-2.5-flash-lite',
-  'gemini-3.1-flash-lite'
-].filter((m, idx, arr) => arr.indexOf(m) === idx);
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL;
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL;
 
-const PLANNER_MODEL = CANDIDATE_MODELS;
-const EXECUTOR_MODEL = CANDIDATE_MODELS;
-const VALIDATOR_MODEL = CANDIDATE_MODELS;
-const ASSISTANT_MODEL = DEFAULT_MODEL;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL;
 
 // ============================================================
 // 🗃️ BOUNDED IN-MEMORY RESPONSE CACHE WITH TTL & LRU EVICTION
@@ -151,7 +144,7 @@ function validateProjectPlan(plan) {
   if (!plan.complexity || typeof plan.complexity !== 'string') return false;
   if (!Array.isArray(plan.phases) || plan.phases.length === 0) return false;
 
-  if (plan.projectOverview.length < 30) {
+  if (plan.projectOverview.length < 20) {
     console.warn('Project overview too short:', plan.projectOverview.length);
     return false;
   }
@@ -170,7 +163,6 @@ function validateProjectPlan(plan) {
 function validateContentQuality(plan, teamMembers = []) {
   const issues = [];
 
-  // Check task titles and durations
   (plan?.phases || []).forEach(phase => {
     (phase.tasks || []).forEach(task => {
       if (!task.title || task.title.length < 5) {
@@ -182,7 +174,6 @@ function validateContentQuality(plan, teamMembers = []) {
     });
   });
 
-  // Check if assigned team members exist
   const assignedEmails = new Set();
   (plan?.phases || []).forEach(phase => {
     (phase.tasks || []).forEach(task => {
@@ -199,58 +190,194 @@ function validateContentQuality(plan, teamMembers = []) {
 }
 
 /**
- * Generic AI caller with retry and model failover
+ * 1. Primary: Call local Ollama instance
  */
-async function callAIWithRetry(ai, modelOrModels, contents, config, maxRetries = 3, timeoutMs = 45000, context = 'unknown') {
-  const models = Array.isArray(modelOrModels) ? modelOrModels : [modelOrModels];
+async function callOllamaWithRetry({
+  model = OLLAMA_MODEL,
+  systemPrompt,
+  userPrompt,
+  temperature = 0.2,
+  format = 'json',
+  maxRetries = 2,
+  timeoutMs = 60000,
+  context = 'unknown'
+}) {
   let lastError = null;
 
-  for (let mIdx = 0; mIdx < models.length; mIdx++) {
-    const currentModel = models[mIdx];
-    let retries = 0;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
-    while (retries < maxRetries) {
-      try {
-        let timeoutHandle;
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error('AI Request timeout')), timeoutMs);
-        });
-
-        const apiPromise = ai.models.generateContent({
-          model: currentModel,
-          contents: contents,
-          config: config,
-        });
-
-        const result = await Promise.race([apiPromise, timeoutPromise]);
-        clearTimeout(timeoutHandle);
-        return result;
-
-      } catch (error) {
-        retries++;
-        lastError = error;
-
-        const isQuotaOrOverload = error.message?.includes('429') ||
-                                  error.message?.includes('503') ||
-                                  error.message?.includes('RESOURCE_EXHAUSTED') ||
-                                  error.message?.includes('UNAVAILABLE');
-
-        if (isQuotaOrOverload && mIdx < models.length - 1) {
-          console.warn(`⚠️ [AI Failover] ${currentModel} error (${error.message}). Failing over to ${models[mIdx + 1]}...`);
-          break;
+      const requestBody = {
+        model: model,
+        messages: [
+          ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+          { role: 'user', content: userPrompt }
+        ],
+        stream: false,
+        options: {
+          temperature: temperature
         }
+      };
 
-        if (retries === maxRetries && mIdx === models.length - 1) {
-          throw error;
-        }
-
-        console.log(`[${context}] Retry ${retries}/${maxRetries} on ${currentModel}:`, error.message);
-        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+      if (format) {
+        requestBody.format = format;
       }
+
+      const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutHandle);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.message?.content || data.response || '';
+      return { text: content, provider: `Ollama (${model})` };
+
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ [${context}] Attempt ${attempt}/${maxRetries} on Ollama (${model}) failed: ${error.message}`);
+
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 800 * attempt));
     }
   }
 
-  throw lastError || new Error('All AI models failed');
+  throw lastError || new Error(`Failed to get response from Ollama for ${context}`);
+}
+
+/**
+ * 2. Fallback: Call OpenRouter (openai/gpt-4o)
+ */
+async function callOpenRouterWithRetry({
+  model = OPENROUTER_MODEL,
+  systemPrompt,
+  userPrompt,
+  temperature = 0.2,
+  format = 'json',
+  maxTokens = 2500,
+  maxRetries = 2,
+  timeoutMs = 45000,
+  context = 'unknown'
+}) {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY is not configured for fallback');
+  }
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+      const requestBody = {
+        model: model,
+        messages: [
+          ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: temperature,
+        max_tokens: maxTokens
+      };
+
+      if (format === 'json') {
+        requestBody.response_format = { type: 'json_object' };
+      }
+
+      const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'http://localhost:5000',
+          'X-Title': 'AI Project Planner'
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutHandle);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      return { text: content, provider: `OpenRouter (${model})` };
+
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ [${context}] Attempt ${attempt}/${maxRetries} on OpenRouter (${model}) failed: ${error.message}`);
+
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, 800 * attempt));
+    }
+  }
+
+  throw lastError || new Error(`Failed to get response from OpenRouter for ${context}`);
+}
+
+/**
+ * Unified LLM Runner with Automatic Failover:
+ * 1. Tries local Ollama (llama3.2)
+ * 2. If Ollama fails, automatically falls back to OpenRouter (openai/gpt-4o)
+ */
+async function callLLMWithFallback({
+  systemPrompt,
+  userPrompt,
+  temperature = 0.2,
+  format = 'json',
+  maxTokens = 2500,
+  context = 'unknown'
+}) {
+  try {
+    return await callOllamaWithRetry({
+      model: OLLAMA_MODEL,
+      systemPrompt,
+      userPrompt,
+      temperature,
+      format,
+      maxRetries: 2,
+      timeoutMs: 45000,
+      context
+    });
+  } catch (ollamaErr) {
+    console.warn(`🔄 [LLM Failover] Ollama failed (${ollamaErr.message}). Failing over to OpenRouter (${OPENROUTER_MODEL})...`);
+    try {
+      const openRouterRes = await callOpenRouterWithRetry({
+        model: OPENROUTER_MODEL,
+        systemPrompt,
+        userPrompt,
+        temperature,
+        format,
+        maxTokens,
+        maxRetries: 2,
+        timeoutMs: 45000,
+        context: `${context}_FALLBACK`
+      });
+      console.log(`✅ [LLM Failover] Successfully generated via OpenRouter (${OPENROUTER_MODEL}) for ${context}`);
+      return openRouterRes;
+    } catch (fallbackErr) {
+      console.error(`❌ Both Ollama and OpenRouter fallback failed for ${context}:`, fallbackErr.message);
+      throw new Error(`AI Generation Failed: Ollama (${ollamaErr.message}) & OpenRouter (${fallbackErr.message})`);
+    }
+  }
 }
 
 /**
@@ -301,7 +428,7 @@ function detectCriticalIssues(validatorData, phases, teamMembers = []) {
 }
 
 /**
- * Executes Role-Based AI Agents sequentially:
+ * Executes Role-Based AI Agents sequentially with Ollama + OpenRouter Fallback:
  * 1. Planner Agent (Scope & Architecture)
  * 2. Executor Agent (Task Breakdown & AI Delegation)
  * 3. Validator Agent (Feasibility & Workload Audit)
@@ -317,7 +444,7 @@ async function generateMultiStepPlan(ai, projectDetails) {
       console.log('⚡ [CACHE] Cache HIT — returning saved plan for:', projectName);
       return cachedPlan;
     }
-    console.log('🔄 [CACHE] Cache MISS — executing Gemini agents...');
+    console.log(`🔄 [CACHE] Cache MISS — executing agents (Primary: ${OLLAMA_MODEL} | Fallback: ${OPENROUTER_MODEL})...`);
 
     const workflowSteps = [];
     const eligibleMembers = (teamMembers || []).filter(m => !m.isOnLeave && (m.activeTasksCount ?? 0) < 3);
@@ -332,29 +459,22 @@ async function generateMultiStepPlan(ai, projectDetails) {
     // ==========================================
     // STEP 1: 🧠 PLANNER AGENT
     // ==========================================
-    console.log('Step 1/3: 🧠 Planner Agent analyzing architecture & scope...');
+    console.log(`Step 1/3: 🧠 Planner Agent analyzing architecture & scope...`);
     const s1Start = Date.now();
-    const s1Response = await callAIWithRetry(
-      ai,
-      PLANNER_MODEL,
-      `Project Name: ${projectName}\nDescription: ${description}\nTech Stack: ${technology}\nExperience: ${experience}\nDeadline: ${deadline} days`,
-      {
-        systemInstruction: PLANNER_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 1000,
-        temperature: 0.2,
-      },
-      3,
-      45000,
-      'PLANNER_AGENT'
-    );
+    const s1Response = await callLLMWithFallback({
+      systemPrompt: PLANNER_SYSTEM_PROMPT,
+      userPrompt: `Project Name: ${projectName}\nDescription: ${description}\nTech Stack: ${technology}\nExperience: ${experience}\nDeadline: ${deadline} days`,
+      temperature: 0.2,
+      format: 'json',
+      maxTokens: 1200,
+      context: 'PLANNER_AGENT'
+    });
     const s1Data = safeParseJSON(s1Response.text, 'Planner Agent');
     const s1Duration = Date.now() - s1Start;
 
     workflowSteps.push({
       id: 1,
-      role: 'Planner Agent',
+      role: `Planner Agent [${s1Response.provider}]`,
       name: 'Architecture & Scope Strategy',
       icon: '🧠',
       status: 'completed',
@@ -366,18 +486,17 @@ async function generateMultiStepPlan(ai, projectDetails) {
     const adjustedDeadline = !s1Data.deadlineFeasible ? s1Data.suggestedDays : deadline;
 
     // ==========================================
-    // STEP 2: ⚙️ EXECUTOR AGENT (Task Breakdown & AI Delegation)
+    // STEP 2: ⚙️ EXECUTOR AGENT (Delegation)
     // ==========================================
-    console.log('Step 2/3: ⚙️ Executor Agent delegating tasks to team members...');
+    console.log(`Step 2/3: ⚙️ Executor Agent delegating tasks...`);
 
     const ragQuery = `Tech stack: ${technology}. Tasks: ${description}`;
     const relevantPolicies = await retrieveRelevantPolicies(ai, ragQuery);
 
     const s2Start = Date.now();
-    const s2Response = await callAIWithRetry(
-      ai,
-      EXECUTOR_MODEL,
-      `Overview: ${s1Data.projectOverview}
+    const s2Response = await callLLMWithFallback({
+      systemPrompt: EXECUTOR_SYSTEM_PROMPT,
+      userPrompt: `Overview: ${s1Data.projectOverview}
 Complexity: ${s1Data.complexity}
 Developer Experience: ${experience}
 Tech Stack: ${technology}
@@ -388,17 +507,11 @@ ${relevantPolicies}
 
 ELIGIBLE TEAM MEMBERS FOR DELEGATION:
 ${teamText || 'Single Developer'}`,
-      {
-        systemInstruction: EXECUTOR_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 4000,
-        temperature: 0.5,
-      },
-      3,
-      45000,
-      'EXECUTOR_AGENT'
-    );
+      temperature: 0.3,
+      format: 'json',
+      maxTokens: 3000,
+      context: 'EXECUTOR_AGENT'
+    });
 
     let s2Data = safeParseJSON(s2Response.text, 'Executor Agent');
     const s2Duration = Date.now() - s2Start;
@@ -406,16 +519,16 @@ ${teamText || 'Single Developer'}`,
     workflowSteps.push({
       id: 2,
       role: 'RAG Knowledge Engine',
-      name: 'Vector Search & Policy Retrieval',
+      name: 'Policy Retrieval & Vector Matching',
       icon: '🔍',
       status: 'completed',
-      durationMs: 75,
-      summary: `Retrieved domain assignment rules using gemini-embedding-001 cosine similarity.`
+      durationMs: 35,
+      summary: `Retrieved domain assignment rules and developer capacity policies from data/policies.json.`
     });
 
     workflowSteps.push({
       id: 3,
-      role: 'Executor Agent',
+      role: `Executor Agent [${s2Response.provider}]`,
       name: 'Task Breakdown & Smart Delegation',
       icon: '⚙️',
       status: 'completed',
@@ -425,31 +538,24 @@ ${teamText || 'Single Developer'}`,
     });
 
     // ==========================================
-    // STEP 3: 🛡️ VALIDATOR AGENT (Workload Audit & Feasibility)
+    // STEP 3: 🛡️ VALIDATOR AGENT
     // ==========================================
-    console.log('Step 3/3: 🛡️ Validator Agent conducting workload & QA audit...');
+    console.log(`Step 3/3: 🛡️ Validator Agent conducting workload & QA audit...`);
     const s3Start = Date.now();
-    const s3Response = await callAIWithRetry(
-      ai,
-      VALIDATOR_MODEL,
-      `Project Overview: ${s1Data.projectOverview}\nPhases & Delegated Tasks: ${JSON.stringify(s2Data.phases)}`,
-      {
-        systemInstruction: VALIDATOR_SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 2000,
-        temperature: 0.1,
-      },
-      3,
-      45000,
-      'VALIDATOR_AGENT'
-    );
+    const s3Response = await callLLMWithFallback({
+      systemPrompt: VALIDATOR_SYSTEM_PROMPT,
+      userPrompt: `Project Overview: ${s1Data.projectOverview}\nPhases & Delegated Tasks: ${JSON.stringify(s2Data.phases)}`,
+      temperature: 0.1,
+      format: 'json',
+      maxTokens: 1500,
+      context: 'VALIDATOR_AGENT'
+    });
     let s3Data = safeParseJSON(s3Response.text, 'Validator Agent');
     const s3Duration = Date.now() - s3Start;
 
     workflowSteps.push({
-      id: 3,
-      role: 'Validator Agent',
+      id: 4,
+      role: `Validator Agent [${s3Response.provider}]`,
       name: 'Feasibility & Workload Audit',
       icon: '🛡️',
       status: 'completed',
@@ -471,26 +577,20 @@ ${teamText || 'Single Developer'}`,
 
       console.log('Step 4: ⚙️ Executor RETRY — fixing issues...');
       const s4Start = Date.now();
-      const s4Response = await callAIWithRetry(
-        ai,
-        EXECUTOR_MODEL,
-        `Overview: ${s1Data.projectOverview}\nComplexity: ${s1Data.complexity}\nDeveloper Experience: ${experience}\nTech Stack: ${technology}\nTarget Deadline: ${adjustedDeadline} days\n\nTEAM MEMBERS FOR DELEGATION:\n${teamText || 'Single Developer'}\n\n⚠️ VALIDATOR FEEDBACK — YOU MUST FIX THESE ISSUES:\n${feedbackText}\n\nPrevious phase plan for reference:\n${JSON.stringify(s2Data.phases)}`,
-        {
-          systemInstruction: EXECUTOR_SYSTEM_PROMPT,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 4000,
-        },
-        3,
-        45000,
-        'EXECUTOR_RETRY'
-      );
+      const s4Response = await callLLMWithFallback({
+        systemPrompt: EXECUTOR_SYSTEM_PROMPT,
+        userPrompt: `Overview: ${s1Data.projectOverview}\nComplexity: ${s1Data.complexity}\nDeveloper Experience: ${experience}\nTech Stack: ${technology}\nTarget Deadline: ${adjustedDeadline} days\n\nTEAM MEMBERS FOR DELEGATION:\n${teamText || 'Single Developer'}\n\n⚠️ VALIDATOR FEEDBACK — YOU MUST FIX THESE ISSUES:\n${feedbackText}\n\nPrevious phase plan for reference:\n${JSON.stringify(s2Data.phases)}`,
+        temperature: 0.2,
+        format: 'json',
+        maxTokens: 3000,
+        context: 'EXECUTOR_RETRY'
+      });
       s2Data = safeParseJSON(s4Response.text, 'Executor Retry Agent');
       const s4Duration = Date.now() - s4Start;
 
       workflowSteps.push({
-        id: 4,
-        role: 'Executor Agent',
+        id: 5,
+        role: `Executor Agent [${s4Response.provider}]`,
         name: 'Task Correction Pass (Retry)',
         icon: '🔁',
         status: 'completed',
@@ -503,26 +603,20 @@ ${teamText || 'Single Developer'}`,
 
       console.log('Step 5: 🛡️ Validator FINAL audit...');
       const s5Start = Date.now();
-      const s5Response = await callAIWithRetry(
-        ai,
-        VALIDATOR_MODEL,
-        `Project Overview: ${s1Data.projectOverview}\nPhases & Delegated Tasks: ${JSON.stringify(s2Data.phases)}`,
-        {
-          systemInstruction: VALIDATOR_SYSTEM_PROMPT,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 2000,
-        },
-        3,
-        45000,
-        'VALIDATOR_RETRY'
-      );
+      const s5Response = await callLLMWithFallback({
+        systemPrompt: VALIDATOR_SYSTEM_PROMPT,
+        userPrompt: `Project Overview: ${s1Data.projectOverview}\nPhases & Delegated Tasks: ${JSON.stringify(s2Data.phases)}`,
+        temperature: 0.1,
+        format: 'json',
+        maxTokens: 1500,
+        context: 'VALIDATOR_RETRY'
+      });
       s3Data = safeParseJSON(s5Response.text, 'Validator Retry Agent');
       const s5Duration = Date.now() - s5Start;
 
       workflowSteps.push({
-        id: 5,
-        role: 'Validator Agent',
+        id: 6,
+        role: `Validator Agent [${s5Response.provider}]`,
         name: 'Final QA Audit',
         icon: '✅',
         status: 'completed',
@@ -572,8 +666,96 @@ ${teamText || 'Single Developer'}`,
   }
 }
 
+const { recordChatMessage, getChatContext } = require('./chatService');
+
+/**
+ * AI Assistant Copilot Q&A with Automatic OpenRouter Fallback & MongoDB Long-Term Memory Summary
+ */
+async function askAssistantWithLLM({
+  question,
+  sessionId = 'default-session',
+  projectId = null,
+  projectContext,
+  activePlan,
+  conversationHistory
+}) {
+  // 1. Fetch persistent conversation memory & recent history from MongoDB
+  const chatContext = await getChatContext({ sessionId, projectId });
+  const memorySummary = chatContext.summary || '';
+
+  // 2. Format recent conversation messages (prefer MongoDB recorded messages or fallback to passed history)
+  let historyText = '';
+  if (chatContext.recentMessages && chatContext.recentMessages.length > 0) {
+    historyText = chatContext.recentMessages
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
+      .join('\n');
+  } else if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    historyText = conversationHistory
+      .slice(-6)
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
+      .join('\n');
+  }
+
+  // 3. Construct Context with Rolling Memory Summary
+  const assistantPrompt = `PROJECT CONTEXT:
+Project Name: ${projectContext?.projectName || 'Project'}
+Technology: ${projectContext?.technology || 'N/A'}
+Experience Level: ${projectContext?.experience || 'Intermediate'}
+Deadline: ${projectContext?.deadline || 'N/A'} days
+
+CURRENT PROJECT PLAN:
+${JSON.stringify(activePlan || {}, null, 2)}
+${memorySummary ? `\nPREVIOUS CONVERSATION SUMMARY (LONG-TERM MEMORY):\n${memorySummary}\n` : ''}
+RECENT DIALOGUE:
+${historyText || 'No previous conversation in this session.'}
+
+USER QUESTION:
+${question}`;
+
+  const assistantSystemPrompt = `You are a helpful AI project planning assistant. 
+Use the project context, current plan, rolling conversation memory, and recent dialogue to give concise, practical answers.`;
+
+  // 4. Generate response via Ollama (or OpenRouter fallback)
+  const response = await callLLMWithFallback({
+    systemPrompt: assistantSystemPrompt,
+    userPrompt: assistantPrompt,
+    temperature: 0.5,
+    format: null,
+    maxTokens: 1500,
+    context: 'ASSISTANT_COPILOT'
+  });
+
+  const answer = response.text;
+
+  // 5. Persist User question and Assistant response into MongoDB with auto-summarization
+  await recordChatMessage({
+    sessionId,
+    projectId,
+    role: 'user',
+    content: question
+  });
+
+  const chatRecordResult = await recordChatMessage({
+    sessionId,
+    projectId,
+    role: 'assistant',
+    content: answer,
+    callLLM: callLLMWithFallback
+  });
+
+  return {
+    answer,
+    summary: chatRecordResult.summary || memorySummary,
+    provider: response.provider
+  };
+}
+
 module.exports = {
   validateProjectPlan,
   generateMultiStepPlan,
-  ASSISTANT_MODEL
+  askAssistantWithLLM,
+  callLLMWithFallback,
+  OLLAMA_BASE_URL,
+  OLLAMA_MODEL,
+  OPENROUTER_MODEL
 };

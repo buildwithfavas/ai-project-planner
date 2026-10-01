@@ -62,6 +62,8 @@ function App() {
   // AI Assistant Copilot state
   const [question, setQuestion] = useState('')
   const [conversationHistory, setConversationHistory] = useState([])
+  const [chatSummary, setChatSummary] = useState('')
+  const [sessionId, setSessionId] = useState(() => 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7))
   const [assistantLoading, setAssistantLoading] = useState(false)
 
   // 2. TRIGGER MULTI-AGENT WORKFLOW
@@ -72,6 +74,8 @@ function App() {
     setWorkflowSteps([])
     setEmailDispatches([])
     setConversationHistory([])
+    setChatSummary('')
+    setSessionId('sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7))
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/project/plan`, {
@@ -169,6 +173,8 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId,
+          projectId,
           question: userMessage.text,
           projectContext: {
             projectName,
@@ -184,6 +190,9 @@ function App() {
 
       if (data.success) {
         setConversationHistory([...newHistory, { role: 'assistant', text: data.answer || data.reply }])
+        if (data.summary) {
+          setChatSummary(data.summary)
+        }
       } else {
         setConversationHistory([...newHistory, { role: 'assistant', text: 'Error: ' + (data.error || 'Unknown error') }])
       }
@@ -218,10 +227,10 @@ function App() {
 
   const getComplexityColor = (complexity) => {
     switch (complexity?.toLowerCase()) {
-      case 'low': return { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399' };
-      case 'medium': return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' };
-      case 'high': return { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171' };
-      default: return { bg: 'rgba(249, 115, 22, 0.15)', text: '#fb923c' };
+      case 'low': return { bg: '#ecfdf5', text: '#047857' };
+      case 'medium': return { bg: '#fffbeb', text: '#b45309' };
+      case 'high': return { bg: '#fef2f2', text: '#b91c1c' };
+      default: return { bg: '#eff6ff', text: '#1d4ed8' };
     }
   }
 
@@ -243,7 +252,7 @@ function App() {
 
         <div className="header-status-pill">
           <span className="status-dot"></span>
-          <span>Gemini 2.5 Flash & RAG Online</span>
+          <span>Ollama (Llama 3.2) & Multi-Agent Online</span>
         </div>
       </header>
 
@@ -648,6 +657,29 @@ function App() {
                 </p>
               </div>
             </div>
+
+            {chatSummary && (
+              <div style={{
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '14px',
+                fontSize: '12.5px',
+                color: '#78350f',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '15px' }}>🧠</span>
+                <div>
+                  <strong style={{ color: '#92400e', display: 'block', marginBottom: '2px' }}>
+                    Persistent Conversation Memory (MongoDB):
+                  </strong>
+                  <span>{chatSummary}</span>
+                </div>
+              </div>
+            )}
 
             {conversationHistory.length > 0 && (
               <div className="chat-history-box">

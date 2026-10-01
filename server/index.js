@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const { connectDB } = require('./config/db');
-const { ai } = require('./config/gemini');
+// const { ai } = require('./config/gemini');
 const { initializeVectorStore } = require('./services/ragService');
 const projectRoutes = require('./routes/projectRoutes');
 const { errorHandler, AppError } = require('./middlewares/errorHandler');
@@ -11,9 +11,9 @@ const { errorHandler, AppError } = require('./middlewares/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 1. Initialize Database & RAG Vector Store on server startup
+// 1. Initialize Database on server startup
 connectDB();
-initializeVectorStore(ai);
+// initializeVectorStore(); // Vector store initialized with rule policies
 
 // 2. Global Middlewares
 app.use(cors({

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const { ai } = require('../config/gemini');
-const { validateProjectPlan, generateMultiStepPlan, ASSISTANT_MODEL } = require('../services/promptService');
+// const { ai } = require('../config/gemini');
+const { validateProjectPlan, generateMultiStepPlan, askAssistantWithLLM } = require('../services/promptService');
 const { sendIndividualTaskEmails } = require('../services/emailService');
 const { AppError } = require('../middlewares/errorHandler');
 const Project = require('../models/Project');
@@ -15,7 +15,7 @@ const generatePlan = async (req, res, next) => {
 
     console.log(`Starting Multi-Step AI Workflow for "${projectName}"...`);
 
-    const { plan, workflowSteps } = await generateMultiStepPlan(ai, {
+    const { plan, workflowSteps } = await generateMultiStepPlan(null, {
       projectName,
       description,
       experience,
@@ -105,56 +105,41 @@ const dispatchEmails = async (req, res, next) => {
   }
 };
 
+const { getSessionHistory } = require('../services/chatService');
+
 /**
  * 3. AI Assistant Follow-Up Q&A
  * POST /api/project/assistant | POST /api/planner/ask
  */
 const askAssistant = async (req, res, next) => {
   try {
-    const { question, projectContext, currentPlan, planContext, conversationHistory } = req.body;
+    const {
+      question,
+      sessionId = 'session-default',
+      projectId = null,
+      projectContext,
+      currentPlan,
+      planContext,
+      conversationHistory
+    } = req.body;
+
     const activePlan = currentPlan || planContext || {};
 
-    let historyText = '';
-    if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
-      historyText = conversationHistory
-        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
-        .join('\n');
-    }
-
-    const assistantPrompt = `PROJECT CONTEXT:
-Project Name: ${projectContext?.projectName || 'Project'}
-Technology: ${projectContext?.technology || 'N/A'}
-Experience Level: ${projectContext?.experience || 'Intermediate'}
-Deadline: ${projectContext?.deadline || 'N/A'} days
-
-CURRENT PROJECT PLAN:
-${JSON.stringify(activePlan, null, 2)}
-
-CONVERSATION HISTORY:
-${historyText || 'No previous conversation.'}
-
-USER QUESTION:
-${question}`;
-
-    const assistantSystemPrompt = `You are a helpful AI project planning assistant. 
-The developer has already generated a project plan and is now asking follow-up questions.
-Use the project context, current plan, and conversation history to give specific, practical answers.
-Keep answers concise and actionable.`;
-
-    const response = await ai.models.generateContent({
-      model: ASSISTANT_MODEL,
-      contents: assistantPrompt,
-      config: {
-        systemInstruction: assistantSystemPrompt,
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 2000,
-      },
+    const result = await askAssistantWithLLM({
+      question,
+      sessionId,
+      projectId,
+      projectContext,
+      activePlan,
+      conversationHistory
     });
 
     return res.status(200).json({
       success: true,
-      answer: response.text,
-      reply: response.text
+      answer: result.answer,
+      reply: result.answer,
+      summary: result.summary,
+      provider: result.provider
     });
   } catch (error) {
     next(error);
@@ -162,7 +147,21 @@ Keep answers concise and actionable.`;
 };
 
 /**
- * 4. Get Project History (List recent projects)
+ * 4. Get Chat Session History and Rolling Memory Summary
+ * GET /api/project/chat/:sessionId
+ */
+const getChatSession = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const history = await getSessionHistory(sessionId);
+    return res.status(200).json(history);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 5. Get Project History (List recent projects)
  * GET /api/project/history
  */
 const getProjectHistory = async (req, res, next) => {
@@ -187,7 +186,7 @@ const getProjectHistory = async (req, res, next) => {
 };
 
 /**
- * 5. Get Single Project Details by ID
+ * 6. Get Single Project Details by ID
  * GET /api/project/:id
  */
 const getProjectById = async (req, res, next) => {
@@ -214,6 +213,7 @@ module.exports = {
   generatePlan,
   dispatchEmails,
   askAssistant,
+  getChatSession,
   getProjectHistory,
   getProjectById
 };

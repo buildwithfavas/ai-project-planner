@@ -38,6 +38,8 @@ const sendEmailsSchema = z.object({
 
 // 3. Validation for /api/project/assistant
 const assistantSchema = z.object({
+  sessionId: z.string().optional(),
+  projectId: z.string().optional().nullable(),
   question: z.string().min(1, 'Question cannot be empty'),
   projectContext: z.object({
     projectName: z.string().optional().default('Project'),

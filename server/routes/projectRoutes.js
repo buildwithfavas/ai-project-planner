@@ -5,6 +5,7 @@ const {
   generatePlan,
   dispatchEmails,
   askAssistant,
+  getChatSession,
   getProjectHistory,
   getProjectById
 } = require('../controllers/projectController');
@@ -52,6 +53,9 @@ router.post(['/send-emails', '/send-tasks'], validate(sendEmailsSchema), dispatc
 // POST /assistant & /ask
 router.post(['/assistant', '/ask'], assistantLimiter, validate(assistantSchema), askAssistant);
 
+// GET /chat/:sessionId (Fetch persistent chat history & memory summary)
+router.get('/chat/:sessionId', getChatSession);
+
 // GET /history
 router.get('/history', getProjectHistory);
 
@@ -59,3 +63,4 @@ router.get('/history', getProjectHistory);
 router.get('/:id', getProjectById);
 
 module.exports = router;
+

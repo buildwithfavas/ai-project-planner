@@ -1,0 +1,37 @@
+[
+  {
+    "id": "backend_rules",
+    "topic": "Backend & API Assignment",
+    "content": "Assign backend, REST API, authentication, server-side logic, and microservices tasks to Backend Developers skilled in Node.js, Express, and databases."
+  },
+  {
+    "id": "frontend_rules",
+    "topic": "Frontend & UI Assignment",
+    "content": "Assign UI/UX, responsive layouts, components, state management, and styling tasks to Frontend Developers skilled in React, Tailwind, and JavaScript."
+  },
+  {
+    "id": "database_rules",
+    "topic": "Database & DevOps Assignment",
+    "content": "Assign schema design, indexing, queries, migrations, caching (Redis), Docker, and deployment tasks to Database and DevOps engineers."
+  },
+  {
+    "id": "qa_rules",
+    "topic": "QA & Testing Assignment",
+    "content": "Assign unit tests, integration tests, E2E testing (Cypress/Jest), and QA verification to QA/Testing engineers."
+  },
+  {
+    "id": "capacity_rules",
+    "topic": "Workload & Capacity Limit",
+    "content": "Strict rule: Developers with 3 or more active tasks are at maximum capacity and must never be assigned new tasks. Balance workload across available developers."
+  },
+  {
+    "id": "leave_rules",
+    "topic": "Leave & Availability",
+    "content": "Developers marked as on leave or unavailable must be completely excluded from receiving any task assignments."
+  },
+  {
+    "id": "priority_rules",
+    "topic": "High-Priority Task Assignment",
+    "content": "High-priority or critical path tasks should be assigned to the most experienced eligible developer available with lowest active workload."
+  }
+]
