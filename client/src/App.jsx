@@ -189,7 +189,14 @@ function App() {
       const data = await res.json()
 
       if (data.success) {
-        setConversationHistory([...newHistory, { role: 'assistant', text: data.answer || data.reply }])
+        setConversationHistory([
+          ...newHistory,
+          {
+            role: 'assistant',
+            text: data.answer || data.reply,
+            provider: data.provider || 'Ollama (llama3.2)'
+          }
+        ])
         if (data.summary) {
           setChatSummary(data.summary)
         }
@@ -688,8 +695,21 @@ function App() {
                     key={index} 
                     className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`}
                   >
-                    <div className="chat-bubble-sender">
-                      {msg.role === 'user' ? '👤 You' : '🤖 AI Copilot'}
+                    <div className="chat-bubble-sender" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>{msg.role === 'user' ? '👤 You' : '🤖 AI Copilot'}</span>
+                      {msg.role === 'assistant' && msg.provider && (
+                        <span style={{ 
+                          fontSize: '11px', 
+                          fontWeight: 500, 
+                          color: '#4f46e5', 
+                          background: '#eef2ff', 
+                          border: '1px solid #c7d2fe', 
+                          padding: '1px 6px', 
+                          borderRadius: '4px' 
+                        }}>
+                          {msg.provider}
+                        </span>
+                      )}
                     </div>
                     <div>{msg.text}</div>
                   </div>

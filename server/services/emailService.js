@@ -22,13 +22,25 @@ function getMailTransporter() {
     return null;
   }
 
+  const isGmail = (process.env.EMAIL_USER || '').endsWith('@gmail.com') || (process.env.EMAIL_HOST || '').includes('gmail');
+
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER.trim(),
+        pass: process.env.EMAIL_PASS.trim()
+      }
+    });
+  }
+
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
     port: Number(process.env.EMAIL_PORT) || 587,
     secure: Number(process.env.EMAIL_PORT) === 465,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: process.env.EMAIL_USER.trim(),
+      pass: process.env.EMAIL_PASS.trim()
     }
   });
 }
@@ -112,15 +124,25 @@ async function sendIndividualTaskEmails({ teamMembers, projectName, planData }) 
     let cumulativeDayCount = 0;
 
     (planData?.phases || []).forEach((phase) => {
+      const phaseName = phase.phaseName || phase.name || 'Sprint Phase';
       (phase.tasks || []).forEach((task) => {
-        const taskDuration = Number(task.estimatedDays) || 1;
+        const taskDuration = Number(task.estimatedDays) || Number(task.estimatedHours ? Math.ceil(task.estimatedHours / 8) : 1) || 1;
         const taskStartDay = cumulativeDayCount;
         const taskEndDay = cumulativeDayCount + taskDuration;
         cumulativeDayCount = taskEndDay;
 
-        if (task.assignedToEmail === member.email) {
+        const taskEmail = (task.assignedToEmail || task.assignedEmail || task.email || '').toLowerCase().trim();
+        const memberEmail = (member.email || '').toLowerCase().trim();
+        const taskName = (task.assignedName || task.assignedTo || task.developer || '').toLowerCase().trim();
+        const memberName = (member.name || '').toLowerCase().trim();
+
+        const isMatch = (taskEmail && taskEmail === memberEmail) ||
+                        (taskName && memberName && (taskName.includes(memberName) || memberName.includes(taskName))) ||
+                        (task.assignedTo && task.assignedTo.toLowerCase().trim() === memberEmail);
+
+        if (isMatch) {
           rawAssignedTasks.push({
-            phaseName: phase.name,
+            phaseName,
             ...task,
             startDay: taskStartDay,
             endDay: taskEndDay,
@@ -131,7 +153,10 @@ async function sendIndividualTaskEmails({ teamMembers, projectName, planData }) 
       });
     });
 
-    if (rawAssignedTasks.length === 0) continue;
+    if (rawAssignedTasks.length === 0) {
+      console.log(`ℹ️ [Email Dispatch] No tasks assigned to ${member.name} (${member.email}). Skipping.`);
+      continue;
+    }
 
     // Sort by chronological start day first, then priority
     rawAssignedTasks.sort((a, b) => {

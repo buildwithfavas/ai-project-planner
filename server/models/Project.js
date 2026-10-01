@@ -3,28 +3,31 @@ const mongoose = require('mongoose');
 // Sub-schema for individual tasks within a phase
 const taskSchema = new mongoose.Schema({
   taskId: { type: String },
-  title: { type: String, required: true },
+  title: { type: String },
   description: { type: String },
+  assignedTo: { type: String },
   assignedToEmail: { type: String },
   assignedName: { type: String },
   assignedRole: { type: String },
   assignmentReason: { type: String }, // Explainable AI (XAI)
   estimatedHours: { type: Number, default: 8 },
-  priority: { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' },
+  priority: { type: String, default: 'Medium' },
   status: {
     type: String,
     enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED'],
     default: 'PENDING'
   }
-}, { _id: false });
+}, { _id: false, strict: false });
 
 // Sub-schema for phases
 const phaseSchema = new mongoose.Schema({
   phaseNumber: { type: Number },
-  phaseName: { type: String, required: true },
+  phase: { type: Number },
+  phaseName: { type: String },
+  name: { type: String },
   durationDays: { type: Number, default: 7 },
   tasks: [taskSchema]
-}, { _id: false });
+}, { _id: false, strict: false });
 
 // Main Project Schema
 const projectSchema = new mongoose.Schema({
