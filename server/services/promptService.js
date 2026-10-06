@@ -101,9 +101,6 @@ Return JSON:
   ]
 }`;
 
-/**
- * Robust JSON extraction and parser for LLM responses
- */
 function safeParseJSON(text, agentName = 'AI Agent') {
   if (!text || typeof text !== 'string') {
     throw new Error(`${agentName} returned an empty or invalid response`);
@@ -170,15 +167,6 @@ function validateContentQuality(plan, teamMembers = []) {
       }
       if (!task.estimatedDays || task.estimatedDays < 1) {
         issues.push(`Invalid estimated days for task: "${task.title}"`);
-      }
-    });
-  });
-
-  const assignedEmails = new Set();
-  (plan?.phases || []).forEach(phase => {
-    (phase.tasks || []).forEach(task => {
-      if (task.assignedToEmail) {
-        assignedEmails.add(task.assignedToEmail);
       }
     });
   });
@@ -433,7 +421,7 @@ function detectCriticalIssues(validatorData, phases, teamMembers = []) {
  * 2. Executor Agent (Task Breakdown & AI Delegation)
  * 3. Validator Agent (Feasibility & Workload Audit)
  */
-async function generateMultiStepPlan(ai, projectDetails) {
+async function generateMultiStepPlan(projectDetails) {
   try {
     const { projectName, description, experience, technology, deadline, teamMembers } = projectDetails;
 
@@ -491,7 +479,7 @@ async function generateMultiStepPlan(ai, projectDetails) {
     console.log(`Step 2/3: ⚙️ Executor Agent delegating tasks...`);
 
     const ragQuery = `Tech stack: ${technology}. Tasks: ${description}`;
-    const relevantPolicies = await retrieveRelevantPolicies(ai, ragQuery);
+    const relevantPolicies = await retrieveRelevantPolicies(ragQuery);
 
     const s2Start = Date.now();
     const s2Response = await callLLMWithFallback({
@@ -758,9 +746,5 @@ Always format your response with clean, structured Markdown:
 module.exports = {
   validateProjectPlan,
   generateMultiStepPlan,
-  askAssistantWithLLM,
-  callLLMWithFallback,
-  OLLAMA_BASE_URL,
-  OLLAMA_MODEL,
-  OPENROUTER_MODEL
+  askAssistantWithLLM
 };

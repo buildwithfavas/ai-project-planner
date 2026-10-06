@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Sub-schema for individual tasks within a phase
 const taskSchema = new mongoose.Schema({
   taskId: { type: String },
   title: { type: String },
@@ -9,7 +8,7 @@ const taskSchema = new mongoose.Schema({
   assignedToEmail: { type: String },
   assignedName: { type: String },
   assignedRole: { type: String },
-  assignmentReason: { type: String }, // Explainable AI (XAI)
+  assignmentReason: { type: String },
   estimatedHours: { type: Number, default: 8 },
   priority: { type: String, default: 'Medium' },
   status: {
@@ -19,7 +18,6 @@ const taskSchema = new mongoose.Schema({
   }
 }, { _id: false, strict: false });
 
-// Sub-schema for phases
 const phaseSchema = new mongoose.Schema({
   phaseNumber: { type: Number },
   phase: { type: Number },
@@ -29,13 +27,12 @@ const phaseSchema = new mongoose.Schema({
   tasks: [taskSchema]
 }, { _id: false, strict: false });
 
-// Main Project Schema
 const projectSchema = new mongoose.Schema({
   projectName: {
     type: String,
     required: [true, 'Project name is required'],
     trim: true,
-    index: true // Indexed for fast searches by name
+    index: true
   },
   description: {
     type: String,
@@ -82,7 +79,7 @@ const projectSchema = new mongoose.Schema({
     type: String,
     enum: ['DRAFT', 'APPROVED', 'DISPATCHED'],
     default: 'DRAFT',
-    index: true // Indexed for filtering active vs dispatched projects
+    index: true
   },
   emailDispatches: [{
     recipient: String,
@@ -90,7 +87,7 @@ const projectSchema = new mongoose.Schema({
     status: String
   }]
 }, {
-  timestamps: true // Automatically adds createdAt and updatedAt
+  timestamps: true
 });
 
 const Project = mongoose.model('Project', projectSchema);

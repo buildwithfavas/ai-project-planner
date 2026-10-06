@@ -1,0 +1,32 @@
+[
+  {
+    "id": "security_auth_standard",
+    "topic": "Authentication & Password Security",
+    "content": "Mandate bcrypt for password hashing with salt rounds >= 10, and sign stateless session tokens using jsonwebtoken (JWT) with expiration."
+  },
+  {
+    "id": "api_design_standard",
+    "topic": "RESTful API & Error Handling",
+    "content": "Use Express standard HTTP status codes (200, 201, 400, 401, 404, 500) and implement centralized error-handling middleware with structured JSON responses."
+  },
+  {
+    "id": "database_optimization_standard",
+    "topic": "MongoDB & Database Indexing",
+    "content": "Define compound indexes for frequently queried fields in Mongoose, enable query lean() for read operations, and avoid deeply nested subdocuments."
+  },
+  {
+    "id": "caching_performance_standard",
+    "topic": "Performance & In-Memory Caching",
+    "content": "Implement Redis or in-memory LRU TTL caching for high-frequency read endpoints and expensive AI response generation to reduce database latency."
+  },
+  {
+    "id": "frontend_state_standard",
+    "topic": "Frontend State & Responsive Design",
+    "content": "Ensure mobile-first responsive styling using CSS flexbox/grid, modular components, and centralized state or React context for user sessions."
+  },
+  {
+    "id": "devops_docker_standard",
+    "topic": "Containerization & CI/CD Deployment",
+    "content": "Dockerize microservices with multi-stage Dockerfiles, enforce environment variable isolation via .env, and include healthcheck endpoints."
+  }
+]

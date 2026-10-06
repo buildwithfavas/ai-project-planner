@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Sub-schema for individual chat messages in a thread
 const messageSchema = new mongoose.Schema({
   role: {
     type: String,
@@ -18,7 +17,6 @@ const messageSchema = new mongoose.Schema({
   }
 }, { _id: true });
 
-// Main Chat / Conversation Model
 const chatSchema = new mongoose.Schema({
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -49,7 +47,6 @@ const chatSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Compound index for fast queries by session or project
 chatSchema.index({ sessionId: 1, updatedAt: -1 });
 chatSchema.index({ projectId: 1, updatedAt: -1 });
 

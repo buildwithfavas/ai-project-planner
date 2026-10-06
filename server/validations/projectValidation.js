@@ -1,6 +1,5 @@
 const { z } = require('zod');
 
-// Schema for individual team member
 const teamMemberSchema = z.object({
   name: z.string().min(1, 'Member name is required'),
   email: z.string().email('Invalid email address'),
@@ -10,13 +9,11 @@ const teamMemberSchema = z.object({
   isOnLeave: z.boolean().optional().default(false)
 });
 
-// Shared deadline schema: safely handles "30", "30 days", or plain number 30
 const deadlineSchema = z.preprocess(
   (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
   z.coerce.number().int().positive('Deadline must be a positive number of days').optional().default(14)
 );
 
-// 1. Validation for /api/project/plan
 const generatePlanSchema = z.object({
   projectName: z.string().min(2, 'Project name must be at least 2 characters'),
   description: z.string().min(5, 'Project description must be at least 5 characters'),
@@ -26,7 +23,6 @@ const generatePlanSchema = z.object({
   teamMembers: z.array(teamMemberSchema).optional().default([])
 });
 
-// 2. Validation for /api/project/send-emails
 const sendEmailsSchema = z.object({
   projectId: z.string().optional(),
   projectName: z.string().min(1, 'Project name is required'),
@@ -36,7 +32,6 @@ const sendEmailsSchema = z.object({
   })
 });
 
-// 3. Validation for /api/project/assistant
 const assistantSchema = z.object({
   sessionId: z.string().optional(),
   projectId: z.string().optional().nullable(),
