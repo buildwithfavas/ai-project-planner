@@ -134,35 +134,7 @@ async function getChatContext({ sessionId, projectId = null }) {
   }
 }
 
-/**
- * 4. Get chat history for frontend display
- */
-async function getSessionHistory(sessionId) {
-  if (mongoose.connection.readyState !== 1) {
-    return { success: true, messages: [], summary: '' };
-  }
-
-  const chat = await Chat.findOne({ sessionId });
-  if (!chat) {
-    return { success: true, messages: [], summary: '' };
-  }
-
-  return {
-    success: true,
-    sessionId: chat.sessionId,
-    projectId: chat.projectId,
-    summary: chat.summary,
-    messages: chat.messages.map(m => ({
-      role: m.role,
-      text: m.content,
-      timestamp: m.timestamp
-    }))
-  };
-}
-
 module.exports = {
-  getOrCreateChatSession,
   recordChatMessage,
-  getChatContext,
-  getSessionHistory
+  getChatContext
 };
