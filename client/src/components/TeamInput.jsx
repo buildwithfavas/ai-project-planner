@@ -47,7 +47,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
           
           return (
             <div key={i} className={cardClass}>
-              {/* 1. Name */}
               <input 
                 type="text" 
                 placeholder="Developer Name" 
@@ -56,7 +55,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 className="team-input" 
               />
 
-              {/* 2. Email */}
               <input 
                 type="email" 
                 placeholder="developer@company.com" 
@@ -65,7 +63,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 className="team-input" 
               />
 
-              {/* 3. Role */}
               <select 
                 value={m.role} 
                 onChange={e => updateMember(i, 'role', e.target.value)} 
@@ -77,7 +74,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 <option value="QA">QA & Testing</option>
               </select>
 
-              {/* 4. Skills */}
               <input 
                 type="text" 
                 placeholder="Skills (React, Node, etc.)" 
@@ -87,7 +83,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 title="Comma separated technical skills"
               />
 
-              {/* 5. Active Tasks Count (strictly capped at 3) */}
               <div className="task-count-wrap">
                 <input 
                   type="number" 
@@ -110,7 +105,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 )}
               </div>
 
-              {/* 6. Leave Checkbox Toggle */}
               <label className={`leave-toggle-label ${m.isOnLeave ? 'leave-toggle-on-leave' : 'leave-toggle-active'}`}>
                 <input 
                   type="checkbox" 
@@ -121,7 +115,6 @@ export default function TeamInput({ teamMembers, setTeamMembers }) {
                 {m.isOnLeave ? 'On Leave' : 'Active'}
               </label>
 
-              {/* 7. Delete Button */}
               <button 
                 type="button" 
                 onClick={() => removeMember(i)} 

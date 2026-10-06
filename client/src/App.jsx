@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import TeamInput from './components/TeamInput'
 import WorkflowVisualizer from './components/WorkflowVisualizer'
 import './styles/App.css'
@@ -6,14 +7,12 @@ import './styles/App.css'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
 function App() {
-  // 1. STATE VARIABLES FOR THE FORM FIELDS
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
   const [experience, setExperience] = useState('Beginner')
   const [technology, setTechnology] = useState('MERN Stack')
   const [deadline, setDeadline] = useState('30 days')
 
-  // Team Members State
   const [teamMembers, setTeamMembers] = useState([
     { 
       name: 'Amal', 
@@ -24,8 +23,8 @@ function App() {
       isOnLeave: false 
     },
     { 
-      name: 'Najeeb', 
-      email: 'nnaju044@gmail.com', 
+      name: 'Favas', 
+      email: 'mohammedfavas888@gmail.com', 
       role: 'Backend',
       skills: ['Node.js', 'Express', 'MongoDB', 'JWT', 'REST APIs'],
       activeTasksCount: 2,
@@ -36,7 +35,7 @@ function App() {
       email: 'bennetsharwin76@gmail.com', 
       role: 'Database',
       skills: ['PostgreSQL', 'MongoDB', 'Redis', 'Docker'],
-      activeTasksCount: 3, // At capacity (3 tasks)
+      activeTasksCount: 3,
       isOnLeave: false 
     },
     { 
@@ -45,28 +44,24 @@ function App() {
       role: 'QA',
       skills: ['Jest', 'Cypress', 'Postman', 'Manual Testing'],
       activeTasksCount: 0,
-      isOnLeave: true // On leave
+      isOnLeave: true 
     }
   ])
 
-  // Loading, Plan & Workflow states
   const [loading, setLoading] = useState(false)
   const [plan, setPlan] = useState(null)
   const [projectId, setProjectId] = useState(null)
   const [workflowSteps, setWorkflowSteps] = useState([])
 
-  // Email Tool Dispatch States
   const [emailSending, setEmailSending] = useState(false)
   const [emailDispatches, setEmailDispatches] = useState([])
 
-  // AI Assistant Copilot state
   const [question, setQuestion] = useState('')
   const [conversationHistory, setConversationHistory] = useState([])
   const [chatSummary, setChatSummary] = useState('')
   const [sessionId, setSessionId] = useState(() => 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7))
   const [assistantLoading, setAssistantLoading] = useState(false)
 
-  // 2. TRIGGER MULTI-AGENT WORKFLOW
   const handleGeneratePlan = async () => {
     setLoading(true)
     setPlan(null)
@@ -108,7 +103,6 @@ function App() {
     }
   }
 
-  // 3. TEAM LEADER MANUAL REASSIGNMENT HANDLER
   const handleReassignTask = (phaseIndex, taskIndex, newEmail) => {
     const assignedMember = teamMembers.find(m => m.email === newEmail)
     if (!assignedMember) return
@@ -127,7 +121,6 @@ function App() {
     })
   }
 
-  // 4. TRIGGER EMAIL DISPATCH TOOL
   const handleSendEmails = async () => {
     if (!plan) return
     setEmailSending(true)
@@ -158,7 +151,6 @@ function App() {
     }
   }
 
-  // 5. AI COPILOT CHAT HANDLER
   const handleAskAssistant = async () => {
     if (!question.trim()) return
 
@@ -245,7 +237,6 @@ function App() {
 
   return (
     <div>
-      {/* 1. TOP NAVIGATION & STATUS BAR */}
       <header className="app-header">
         <div className="brand-badge">
           <div className="brand-logo-icon">🚀</div>
@@ -263,10 +254,7 @@ function App() {
         </div>
       </header>
 
-      {/* 2. MAIN WORKSPACE CONTAINER */}
       <main className="app-main">
-        
-        {/* CONFIGURATION PANEL */}
         <section className="glass-panel">
           <div className="panel-header">
             <div>
@@ -280,7 +268,6 @@ function App() {
             </div>
           </div>
 
-          {/* Form fields */}
           <div className="form-group">
             <label className="form-label">
               <span>Project Name</span>
@@ -355,10 +342,8 @@ function App() {
             />
           </div>
 
-          {/* TEAM MEMBERS ROSTER */}
           <TeamInput teamMembers={teamMembers} setTeamMembers={setTeamMembers} />
 
-          {/* EXECUTION TRIGGER BUTTON */}
           <button
             onClick={handleGeneratePlan}
             disabled={loading || !isFormValid}
@@ -377,7 +362,6 @@ function App() {
             )}
           </button>
 
-          {/* LOADING STEP CHIPS */}
           {loading && (
             <div className="loading-box">
               <div className="loading-spinner"></div>
@@ -397,12 +381,9 @@ function App() {
           )}
         </section>
 
-        {/* WORKFLOW PIPELINE VISUALIZER */}
         {workflowSteps.length > 0 && (
           <WorkflowVisualizer steps={workflowSteps} plan={plan} />
         )}
-
-        {/* PROJECT PLAN & TEAM LEADER REVIEW HUB */}
         {plan && (
           <section className="glass-panel glass-panel-accent">
             
@@ -418,18 +399,15 @@ function App() {
                 </p>
               </div>
 
-              {/* Deadline Feasibility Indicator */}
               <div className={`deadline-badge ${plan.deadlineWarning ? 'deadline-badge-warning' : 'deadline-badge-success'}`}>
                 {plan.deadlineWarning ? '⚠️ Deadline Adjust Suggested' : '✓ Target Deadline Feasible'}
               </div>
             </div>
 
-            {/* Project Overview */}
             <p className="project-overview-box">
               {plan.projectOverview}
             </p>
 
-            {/* Metrics Row */}
             {(() => {
               const compStyle = getComplexityColor(plan.complexity);
               return (
@@ -467,7 +445,6 @@ function App() {
               );
             })()}
 
-            {/* Deadline Warning Banner if applicable */}
             {plan.deadlineWarning && (
               <div className="alert-warning-banner">
                 <span className="alert-warning-icon">⚠️</span>
@@ -477,7 +454,6 @@ function App() {
               </div>
             )}
 
-            {/* DEVELOPMENT PHASES & INTERACTIVE REASSIGNMENT */}
             <div className="phases-section-wrapper">
               <div className="phases-section-header">
                 <h3 className="phases-section-title">
@@ -508,7 +484,6 @@ function App() {
                             <span>{task.title}</span>
                           </div>
 
-                          {/* Recommended packages */}
                           {task.recommendedPackages && task.recommendedPackages.length > 0 && (
                             <div className="package-list">
                               {task.recommendedPackages.map((pkg, kIdx) => (
@@ -519,7 +494,6 @@ function App() {
                             </div>
                           )}
 
-                          {/* Deliverables Checklist */}
                           {task.keyDeliverables && task.keyDeliverables.length > 0 && (
                             <ul className="deliverable-list">
                               {task.keyDeliverables.map((item, dIdx) => (
@@ -528,7 +502,6 @@ function App() {
                             </ul>
                           )}
 
-                          {/* AI Match Reason Callout */}
                           {task.assignmentReason && (
                             <div className="ai-match-callout">
                               <strong>AI Assignment Rationale:</strong>{' '}
@@ -537,7 +510,6 @@ function App() {
                           )}
                         </div>
 
-                        {/* Reassignment Dropdown & Duration */}
                         <div className="reassign-controls">
                           <select
                             value={task.assignedToEmail || ''}
@@ -563,9 +535,7 @@ function App() {
               ))}
             </div>
 
-            {/* RISKS & TESTING PLAN GRID */}
             <div className="grid-2col" style={{ marginTop: '24px' }}>
-              {/* Risks Card */}
               <div className="risks-card">
                 <h4 className="risks-card-title">
                   <span>⚠️</span> Identified Risks & Workload Bottlenecks
@@ -580,7 +550,6 @@ function App() {
                 </div>
               </div>
 
-              {/* QA & Testing Card */}
               <div className="qa-card">
                 <h4 className="qa-card-title">
                   <span>🧪</span> QA Validation & Audit Strategy
@@ -596,7 +565,6 @@ function App() {
               </div>
             </div>
 
-            {/* TEAM LEADER EMAIL DISPATCH CONSOLE */}
             <div className="dispatch-console">
               <div className="dispatch-console-header">
                 <span className="dispatch-console-icon">👑</span>
@@ -628,7 +596,6 @@ function App() {
                 )}
               </button>
 
-              {/* Email Dispatch Logs */}
               {emailDispatches.length > 0 && (
                 <div className="dispatch-results-box">
                   <div className="dispatch-results-header">
@@ -650,7 +617,6 @@ function App() {
           </section>
         )}
 
-        {/* AI ASSISTANT COPILOT (FOLLOW-UP CHAT) */}
         {plan && (
           <section className="assistant-chat-container">
             <div className="panel-header copilot-header">
@@ -711,7 +677,15 @@ function App() {
                         </span>
                       )}
                     </div>
-                    <div>{msg.text}</div>
+                    <div className="chat-bubble-content">
+                      {msg.role === 'assistant' ? (
+                        <div className="chat-markdown-body">
+                          <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="chat-user-text">{msg.text}</div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

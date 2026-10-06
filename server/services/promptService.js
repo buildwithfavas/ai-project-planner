@@ -712,8 +712,13 @@ ${historyText || 'No previous conversation in this session.'}
 USER QUESTION:
 ${question}`;
 
-  const assistantSystemPrompt = `You are a helpful AI project planning assistant. 
-Use the project context, current plan, rolling conversation memory, and recent dialogue to give concise, practical answers.`;
+  const assistantSystemPrompt = `You are an expert AI software project planning assistant and technical architect.
+Always format your response with clean, structured Markdown:
+- Break responses into clear paragraphs separated by empty lines.
+- Use numbered lists (1., 2., 3.) for sequential steps or priorities.
+- Use bullet points (- ) for options, recommendations, and feature breakdowns.
+- Use bold text (**like this**) for key terms, roles, and phase titles.
+- Be concise, direct, and practical.`;
 
   // 4. Generate response via Ollama (or OpenRouter fallback)
   const response = await callLLMWithFallback({

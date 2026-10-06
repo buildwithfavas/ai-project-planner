@@ -7,7 +7,6 @@ export default function WorkflowVisualizer({ steps, plan }) {
   return (
     <div className="workflow-container">
       
-      {/* 1. Header with Badge */}
       <div className="workflow-header">
         <div className="workflow-title-wrap">
           <span className="workflow-header-icon">
@@ -29,7 +28,6 @@ export default function WorkflowVisualizer({ steps, plan }) {
         </span>
       </div>
 
-      {/* 2. Visual Pipeline Flow */}
       <div className="pipeline-track">
         {steps.map((step, idx) => {
           const isRetry = step.isRetry;
@@ -58,7 +56,6 @@ export default function WorkflowVisualizer({ steps, plan }) {
         })}
       </div>
 
-      {/* 3. Detailed Task Assignment & Validation Cards */}
       {plan?.phases && (
         <div className="delegation-audit-section">
           <h4 className="delegation-audit-title">
